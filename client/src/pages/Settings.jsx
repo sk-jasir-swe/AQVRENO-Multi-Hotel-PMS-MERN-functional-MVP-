@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../services/api";
-import { downloadBackup } from "../services/download";
+import {
+  BACKUP_LAST_DOWNLOADED_KEY,
+  downloadBackup,
+} from "../services/download";
 import PhoneInput from "../components/PhoneInput";
 
 export default function Settings() {
@@ -14,7 +17,9 @@ export default function Settings() {
   const [restorePreview, setRestorePreview] = useState(null);
   const [restoring, setRestoring] = useState(false);
   useEffect(() => {
-    const lastBackup = window.localStorage.getItem("staypro-backup-last-downloaded");
+    const lastBackup =
+      window.localStorage.getItem(BACKUP_LAST_DOWNLOADED_KEY) ||
+      window.localStorage.getItem("staypro-backup-last-downloaded");
     setBackupReminder(
       !lastBackup || Date.now() - new Date(lastBackup).getTime() > 7 * 86400000,
     );
@@ -202,7 +207,7 @@ export default function Settings() {
             </div>
           )}
           <label>
-            Validate a StayPro backup
+            Validate an AQVRENO backup
             <input type="file" accept="application/json,.json" onChange={selectBackup} />
           </label>
           <p className="booking-hint">

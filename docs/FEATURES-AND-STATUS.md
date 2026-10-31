@@ -1,4 +1,4 @@
-# StayPro feature and delivery status
+# AQVRENO feature and delivery status
 
 ## Included in this ZIP (functional MVP foundation)
 

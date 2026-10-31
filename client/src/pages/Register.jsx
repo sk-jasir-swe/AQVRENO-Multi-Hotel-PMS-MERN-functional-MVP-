@@ -36,7 +36,7 @@ export default function Register() {
   return (
     <AuthShell
       title="Create your hotel account"
-      subtitle="Start managing your property with StayPro."
+      subtitle="Start managing your property with AQVRENO."
     >
       <form onSubmit={submit}>
         <label>Your name</label>

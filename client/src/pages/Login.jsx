@@ -47,7 +47,7 @@ export default function Login() {
           {busy ? "Signing in…" : "Sign in"}
         </button>
         <p className="auth-foot">
-          New to StayPro? <Link to="/register">Create hotel account</Link>
+          New to AQVRENO? <Link to="/register">Create hotel account</Link>
         </p>
       </form>
     </AuthShell>
@@ -57,7 +57,7 @@ export function AuthShell({ title, subtitle, children }) {
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <span className="brand-mark">S</span> stay<span>pro</span>
+        <img className="brand-logo" src="/aqvreno-logo.png" alt="AQVRENO" />
       </div>
       <div className="auth-card">
         <div className="eyebrow">HOTEL OPERATIONS, SIMPLIFIED</div>
@@ -66,7 +66,7 @@ export function AuthShell({ title, subtitle, children }) {
         {children}
       </div>
       <small className="auth-copy">
-        © 2026 StayPro · Hotel management workspace
+        © 2026 AQVRENO · Hotel management workspace
       </small>
     </div>
   );

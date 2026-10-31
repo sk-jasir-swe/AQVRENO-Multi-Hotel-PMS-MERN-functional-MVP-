@@ -113,7 +113,7 @@ export async function notifyBookingEvent({
     { ...(booking.toObject?.() ?? booking), guest },
     hotelName,
   );
-  const subject = `StayPro: ${type.replaceAll("_", " ")}`;
+  const subject = `AQVRENO: ${type.replaceAll("_", " ")}`;
   const staff = await User.find({
     hotel,
     active: true,

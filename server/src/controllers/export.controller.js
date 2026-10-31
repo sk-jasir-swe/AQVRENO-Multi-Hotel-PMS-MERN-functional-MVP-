@@ -218,7 +218,7 @@ export async function backupHotelData(req, res) {
   const date = new Date().toISOString().slice(0, 10);
   res
     .type("application/json")
-    .set("Content-Disposition", `attachment; filename="staypro-backup-${date}.json"`)
+    .set("Content-Disposition", `attachment; filename="aqvreno-backup-${date}.json"`)
     .json({ backupVersion: 1, exportedAt: new Date().toISOString(), hotel, collections });
 }
 

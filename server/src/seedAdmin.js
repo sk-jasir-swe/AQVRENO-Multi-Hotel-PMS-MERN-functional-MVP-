@@ -15,7 +15,7 @@ try {
   const passwordHash = await bcrypt.hash(password, 12);
 
   if (user) {
-    user.name = process.env.SUPER_ADMIN_NAME || "StayPro Admin";
+    user.name = process.env.SUPER_ADMIN_NAME || "AQVRENO Admin";
     user.password = passwordHash;
     user.role = "super_admin";
     user.active = true;
@@ -23,7 +23,7 @@ try {
     console.log("Super admin credentials updated");
   } else {
     await User.create({
-      name: process.env.SUPER_ADMIN_NAME || "StayPro Admin",
+      name: process.env.SUPER_ADMIN_NAME || "AQVRENO Admin",
       email,
       password: passwordHash,
       role: "super_admin",

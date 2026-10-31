@@ -3,6 +3,7 @@ import User from "../models/User.js";
 export async function protect(req, res, next) {
   try {
     const token =
+      req.cookies?.aqvreno_token ||
       req.cookies?.staypro_token ||
       req.headers.authorization?.replace("Bearer ", "");
     if (!token)

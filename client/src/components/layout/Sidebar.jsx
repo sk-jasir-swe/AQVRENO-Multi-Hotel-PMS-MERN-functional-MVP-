@@ -16,10 +16,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="brand-mark">S</span>
-        <span>
-          Stay<span>Pro</span>
-        </span>
+        <img className="brand-logo" src="/aqvreno-logo.png" alt="AQVRENO" />
       </div>
       <p className="side-label">WORKSPACE</p>
       <nav>
@@ -36,7 +33,7 @@ export default function Sidebar() {
       </nav>
       <div className="side-bottom">
         <div className="help-card">
-          <b>StayPro Support</b>
+          <b>AQVRENO Support</b>
           <p>Hotel operations, simplified.</p>
         </div>
       </div>

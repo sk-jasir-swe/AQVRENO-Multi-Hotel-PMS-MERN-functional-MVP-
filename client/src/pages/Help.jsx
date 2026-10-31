@@ -68,7 +68,7 @@ export default function Help() {
           <div className="eyebrow">SUPPORT</div>
           <h1>Need help?</h1>
           <p>
-            Send a problem or feedback to StayPro support. Your hotel and
+            Send a problem or feedback to AQVRENO support. Your hotel and
             account details are attached automatically.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function Help() {
             <div className="support-replies">
               {ticket.replies?.map((reply, index) => (
                 <div className="support-reply" key={`${reply._id || reply.createdAt}-${index}`}>
-                  <b>{reply.author?.name || "StayPro support"} · {reply.role?.replaceAll("_", " ")}</b>
+                  <b>{reply.author?.name || "AQVRENO support"} · {reply.role?.replaceAll("_", " ")}</b>
                   <p>{reply.message}</p>
                   <small>{new Date(reply.createdAt).toLocaleString("en-IN")}</small>
                 </div>

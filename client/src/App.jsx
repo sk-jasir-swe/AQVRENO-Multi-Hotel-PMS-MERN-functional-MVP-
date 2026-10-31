@@ -30,7 +30,7 @@ export default function App() {
   useEffect(() => {
     dispatch(loadMe());
   }, [dispatch]);
-  if (loading) return <div className="loading">StayPro</div>;
+  if (loading) return <div className="loading">AQVRENO</div>;
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />

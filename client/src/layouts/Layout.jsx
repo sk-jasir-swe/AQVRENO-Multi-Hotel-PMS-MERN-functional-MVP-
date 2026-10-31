@@ -68,6 +68,9 @@ export default function Layout() {
   }, []);
   const clock = indiaClock(now);
   const superMode = user.role === "super_admin";
+  const displayName = superMode
+    ? user.name?.replace(/stay\s*pro/gi, "AQVRENO")
+    : user.name;
   const ownerLinks = [
     ["Dashboard", "/", LayoutDashboard],
     ["Calendar", "/calendar", CalendarRange],
@@ -141,10 +144,7 @@ export default function Layout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">S</span>
-          <span>
-            stay<span>pro</span>
-          </span>
+          <img className="brand-logo" src="/aqvreno-logo.png" alt="AQVRENO" />
         </div>
         <div className="side-label">WORKSPACE</div>
         <nav>
@@ -185,7 +185,7 @@ export default function Layout() {
             ) : null}
             <b>
               Good {clock.greeting}
-              {user.name ? `, ${user.name}` : ""} 👋
+              {displayName ? `, ${displayName}` : ""} 👋
             </b>
             <small>
               {clock.date} · {clock.time}
@@ -195,9 +195,9 @@ export default function Layout() {
             )}
           </div>
           <div className="profile">
-            <div className="avatar">{user.name?.[0]}</div>
+            <div className="avatar">{displayName?.[0]}</div>
             <div>
-              <b>{user.name}</b>
+              <b>{displayName}</b>
               <small>{user.role.replaceAll("_", " ")}</small>
             </div>
           </div>

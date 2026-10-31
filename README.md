@@ -1,6 +1,6 @@
-# StayPro — Multi-Hotel PMS (MERN functional MVP)
+# AQVRENO — Multi-Hotel PMS (MERN functional MVP)
 
-StayPro is a multi-tenant hotel-management SaaS starter built with MongoDB, Express, React and Node.js. The dashboard follows the approved modern light SaaS design. See `docs/approved-dashboard-design.png` and `docs/FEATURES-AND-STATUS.md`.
+AQVRENO is a multi-tenant hotel-management SaaS starter built with MongoDB, Express, React and Node.js. The dashboard follows the approved modern light SaaS design. See `docs/approved-dashboard-design.png` and `docs/FEATURES-AND-STATUS.md`.
 
 ## Included
 

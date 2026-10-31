@@ -1,5 +1,7 @@
 import api from "./api";
 
+const BACKUP_LAST_DOWNLOADED_KEY = "aqvreno-backup-last-downloaded";
+
 export async function downloadCsv(kind, params) {
   const response = await api.get(`/exports/${kind}`, {
     params,
@@ -24,10 +26,13 @@ export async function downloadBackup() {
   );
   const link = document.createElement("a");
   link.href = url;
-  link.download = `staypro-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `aqvreno-backup-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  window.localStorage.setItem("staypro-backup-last-downloaded", new Date().toISOString());
+  window.localStorage.setItem(BACKUP_LAST_DOWNLOADED_KEY, new Date().toISOString());
+  window.localStorage.removeItem("staypro-backup-last-downloaded");
 }
+
+export { BACKUP_LAST_DOWNLOADED_KEY };

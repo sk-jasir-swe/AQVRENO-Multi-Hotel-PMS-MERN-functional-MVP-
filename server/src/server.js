@@ -5,7 +5,7 @@ import { runReminderSweep } from "./services/reminderService.js";
 const port = env.port;
 connectDB()
   .then(() => {
-    app.listen(port, () => console.log(`StayPro API running on ${port}`));
+    app.listen(port, () => console.log(`AQVRENO API running on ${port}`));
     const runReminders = () =>
       runReminderSweep().catch((err) =>
         console.error("Guest reminder sweep failed:", err),

@@ -16,13 +16,17 @@ const cookieOptions = () => ({
   path: "/",
 });
 
+const AUTH_COOKIE = "aqvreno_token";
+const LEGACY_AUTH_COOKIE = "staypro_token";
+
 function issue(res, user) {
   const token = jwt.sign(
     { id: user._id, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: "7d" },
   );
-  res.cookie("staypro_token", token, cookieOptions());
+  res.cookie(AUTH_COOKIE, token, cookieOptions());
+  res.clearCookie(LEGACY_AUTH_COOKIE, { ...cookieOptions(), maxAge: undefined });
 }
 
 const safe = (user) => ({
@@ -122,7 +126,8 @@ export async function login(req, res) {
 }
 
 export function logout(req, res) {
-  res.clearCookie("staypro_token", { ...cookieOptions(), maxAge: undefined });
+  res.clearCookie(AUTH_COOKIE, { ...cookieOptions(), maxAge: undefined });
+  res.clearCookie(LEGACY_AUTH_COOKIE, { ...cookieOptions(), maxAge: undefined });
   res.json({ message: "Logged out" });
 }
 

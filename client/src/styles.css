@@ -37,25 +37,18 @@ button {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font: 800 23px Manrope;
   margin: 0 10px 52px;
-  color: #fff;
 }
-.brand > span:last-child > span,
-.auth-brand > span:last-child {
-  color: #77a0ff;
+.brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 190px;
+  height: auto;
+  border-radius: 5px;
+  background: #000;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  background: #4775ee;
-  color: white;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  font: 800 20px Manrope;
-  box-shadow: 0 6px 15px #3867e855;
+.brand .brand-logo {
+  mix-blend-mode: screen;
 }
 .side-label {
   font-size: 10px;
@@ -896,12 +889,14 @@ td small {
   padding: 30px;
 }
 .auth-brand {
-  font: 800 25px Manrope;
-  color: #17233d;
+  width: min(100%, 320px);
   margin-bottom: 25px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+}
+.auth-brand .brand-logo {
+  max-width: 320px;
 }
 .auth-card {
   background: white;
