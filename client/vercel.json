@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://aqvreno-multi-hotel-pms-mern-functional.onrender.com/api/:path*"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { requireTrustedOrigin } from "./middleware/trustedOrigin.js";
 import errorMiddleware from "./middleware/errorMiddleware.js";
 import api from "./routes/api.routes.js";
 const app = express();
+if (env.nodeEnv === "production") app.set("trust proxy", 1);
 app.use(helmet());
 const clientOrigins = env.clientUrl
   .split(",")

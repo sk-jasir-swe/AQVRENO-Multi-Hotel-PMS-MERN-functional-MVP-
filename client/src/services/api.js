@@ -7,7 +7,7 @@ const api = axios.create({
     import.meta.env.VITE_API_URL ||
     (import.meta.env.DEV
       ? "http://localhost:5001/api"
-      : "https://aqvreno-multi-hotel-pms-mern-functional.onrender.com/api"),
+      : "/api"),
   withCredentials: true,
 });
 
