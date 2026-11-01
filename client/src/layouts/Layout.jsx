@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { setUser } from "../redux/slices/authSlice";
+import { clearAuth } from "../redux/slices/authSlice";
 import api from "../services/api";
 import {
   LayoutDashboard,
@@ -21,7 +21,9 @@ import {
   ConciergeBell,
   LifeBuoy,
   History,
+  Wrench,
 } from "lucide-react";
+import { hasPermission } from "../utils/permissions";
 
 function indiaClock(date) {
   const hour = Number(
@@ -75,8 +77,10 @@ export default function Layout() {
     ["Dashboard", "/", LayoutDashboard],
     ["Calendar", "/calendar", CalendarRange],
     ["Front desk", "/front-desk", ConciergeBell],
+    ["Daily close", "/daily-close", ClipboardCheck],
     ["Reservations", "/bookings", CalendarDays],
     ["Rooms", "/rooms", BedDouble],
+    ["Maintenance", "/maintenance", Wrench],
     ["Guests", "/guests", Users],
     ["Payments", "/payments", CreditCard],
     ["Housekeeping", "/housekeeping", ClipboardCheck],
@@ -92,17 +96,17 @@ export default function Layout() {
       ? [["Staff activity", "/activity", History]]
       : []),
   ];
-  const managerLinks = ownerLinks.filter(
-    ([, path]) => path !== "/staff" && path !== "/settings",
-  );
+  const managerLinks = ownerLinks;
   const receptionistLinks = [
-    ["Dashboard", "/", LayoutDashboard],
     ["Calendar", "/calendar", CalendarRange],
     ["Front desk", "/front-desk", ConciergeBell],
+    ["Daily close", "/daily-close", ClipboardCheck],
     ["Reservations", "/bookings", CalendarDays],
     ["Rooms", "/rooms", BedDouble],
     ["Guests", "/guests", Users],
     ["Payments", "/payments", CreditCard],
+    ["Housekeeping", "/housekeeping", ClipboardCheck],
+    ["Reports", "/reports", FileBarChart],
     ["Restaurant", "/restaurant", ConciergeBell],
     ["Notifications", "/notifications", Bell],
   ];
@@ -116,27 +120,33 @@ export default function Layout() {
       ? ownerLinks
       : user.role === "hotel_manager"
         ? managerLinks
-        : user.role === "housekeeping"
-          ? [
-              ["Rooms", "/rooms", BedDouble],
-              ["Housekeeping", "/housekeeping", ClipboardCheck],
-              ["Restaurant", "/restaurant", ConciergeBell],
-              ["Notifications", "/notifications", Bell],
-            ]
-          : user.role === "restaurant_staff"
-            ? [
-                ["Restaurant", "/restaurant", ConciergeBell],
-                ["Notifications", "/notifications", Bell],
-              ]
-          : receptionistLinks;
+        : receptionistLinks;
   const navLinks = superMode
     ? [...links, ["Support inbox", "/support", LifeBuoy]]
     : [...links, ["Need help?", "/help", LifeBuoy]];
+  const permissionForPath = {
+    "/calendar": "calendar.view",
+    "/front-desk": "frontdesk.view",
+    "/daily-close": "frontdesk.view",
+    "/bookings": "bookings.view",
+    "/rooms": "rooms.view",
+    "/guests": "guests.view",
+    "/payments": "payments.view",
+    "/housekeeping": "housekeeping.view",
+    "/restaurant": "restaurant.view",
+    "/reports": "reports.view",
+    "/notifications": "notifications.view",
+    "/help": "support.manage",
+  };
+  const visibleNavLinks = navLinks.filter(([, path]) => {
+    const permission = permissionForPath[path];
+    return !permission || hasPermission(user, permission);
+  });
   async function logout() {
     try {
       await api.post("/auth/logout");
     } finally {
-      dispatch(setUser(null));
+      dispatch(clearAuth());
       nav("/login");
     }
   }
@@ -148,7 +158,7 @@ export default function Layout() {
         </div>
         <div className="side-label">WORKSPACE</div>
         <nav>
-          {navLinks.map(([label, to, Icon]) => (
+          {visibleNavLinks.map(([label, to, Icon]) => (
             <NavLink
               end
               to={to}
@@ -163,14 +173,16 @@ export default function Layout() {
           ))}
         </nav>
         <div className="side-bottom">
-          <Link className="help-card" to={superMode ? "/support" : "/help"}>
-            <b>{superMode ? "Support inbox" : "Need help?"}</b>
-            <p>
-              {superMode
-                ? "Review hotel issues and feedback."
-                : "Report a problem or share feedback."}
-            </p>
-          </Link>
+          {(superMode || hasPermission(user, "support.manage")) && (
+            <Link className="help-card" to={superMode ? "/support" : "/help"}>
+              <b>{superMode ? "Support inbox" : "Need help?"}</b>
+              <p>
+                {superMode
+                  ? "Review hotel issues and feedback."
+                  : "Report a problem or share feedback."}
+              </p>
+            </Link>
+          )}
           <button className="nav-link" onClick={logout}>
             <LogOut size={18} />
             Sign out
@@ -194,13 +206,13 @@ export default function Layout() {
               <small className="topbar-context">Platform overview</small>
             )}
           </div>
-          <div className="profile">
+          <Link className="profile" to="/profile">
             <div className="avatar">{displayName?.[0]}</div>
             <div>
               <b>{displayName}</b>
               <small>{user.role.replaceAll("_", " ")}</small>
             </div>
-          </div>
+          </Link>
         </header>
         <div className="page-content">
           <Outlet />

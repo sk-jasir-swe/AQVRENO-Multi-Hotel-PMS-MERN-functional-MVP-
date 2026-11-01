@@ -6,6 +6,11 @@ import {
   normalizeGmailAddress,
   passwordValidationError,
 } from "../utils/accountValidation.js";
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  STAFF_PERMISSION_KEYS,
+  permissionsForUser,
+} from "../config/permissions.js";
 
 const STAFF_CREATE_ROLES = ["hotel_manager", "receptionist", "housekeeping", "restaurant_staff"];
 const HOTEL_ROLES = ["hotel_owner", ...STAFF_CREATE_ROLES];
@@ -39,13 +44,22 @@ export async function createStaff(req, res) {
     password: await bcrypt.hash(password, 12),
     role,
     hotel: req.user.hotel._id,
+    permissions: DEFAULT_ROLE_PERMISSIONS[role] || [],
+    permissionsCustomized: false,
   });
   await recordActivity(req, "staff.created", "User", user._id, {
     name: user.name,
     role: user.role,
   });
   res.status(201).json({
-    user: { id: user._id, name: user.name, email: user.email, role: user.role, active: user.active },
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      permissions: permissionsForUser(user),
+    },
   });
 }
 
@@ -54,9 +68,51 @@ export async function listStaff(req, res) {
     hotel: req.user.hotel._id,
     role: { $in: HOTEL_ROLES },
   })
-    .select("name email role active createdAt")
+    .select("name email role active permissions permissionsCustomized createdAt")
     .sort({ createdAt: -1 });
-  res.json({ users });
+  res.json({
+    users: users.map((user) => ({
+      ...user.toObject(),
+      permissions: permissionsForUser(user),
+    })),
+    permissionKeys: STAFF_PERMISSION_KEYS,
+  });
+}
+
+export async function updateStaffPermissions(req, res) {
+  const { permissions } = req.body;
+  if (
+    !Array.isArray(permissions) ||
+    permissions.some(
+      (permission) =>
+        typeof permission !== "string" ||
+        !STAFF_PERMISSION_KEYS.includes(permission),
+    )
+  )
+    return res.status(400).json({ message: "Invalid staff permissions" });
+  const user = await User.findOne({
+    _id: req.params.id,
+    hotel: req.user.hotel._id,
+    role: { $in: STAFF_CREATE_ROLES.filter((role) => role !== "hotel_manager") },
+  });
+  if (!user) return res.status(404).json({ message: "Staff member not found" });
+  user.permissions = [...new Set(permissions)];
+  user.permissionsCustomized = true;
+  await user.save();
+  await recordActivity(req, "staff.permissions_updated", "User", user._id, {
+    name: user.name,
+    permissions: user.permissions,
+  });
+  res.json({
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      active: user.active,
+      permissions: permissionsForUser(user),
+    },
+  });
 }
 
 export async function updateStaff(req, res) {
@@ -67,6 +123,8 @@ export async function updateStaff(req, res) {
     if (!STAFF_CREATE_ROLES.includes(req.body.role))
       return res.status(400).json({ message: "Invalid staff role" });
     updates.role = req.body.role;
+    updates.permissions = DEFAULT_ROLE_PERMISSIONS[req.body.role] || [];
+    updates.permissionsCustomized = false;
   }
   if (req.body.password) {
     const passwordError = passwordValidationError(req.body.password);
@@ -82,12 +140,14 @@ export async function updateStaff(req, res) {
     },
     updates,
     { new: true, runValidators: true },
-  ).select("name email role active");
+  ).select("name email role active permissions permissionsCustomized");
   if (!user) return res.status(404).json({ message: "Staff member not found" });
   await recordActivity(req, "staff.updated", "User", user._id, {
     name: user.name,
     role: user.role,
     active: user.active,
   });
-  res.json({ user });
+  res.json({
+    user: { ...user.toObject(), permissions: permissionsForUser(user) },
+  });
 }

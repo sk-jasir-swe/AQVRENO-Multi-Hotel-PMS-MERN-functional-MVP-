@@ -1,8 +1,8 @@
 import Booking from "../models/Booking.js";
 import Housekeeping from "../models/Housekeeping.js";
 import Room from "../models/Room.js";
-import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import User from "../models/User.js";
 
 export async function housekeepingList(req, res) {
   const filter = { hotel: req.user.hotel._id };

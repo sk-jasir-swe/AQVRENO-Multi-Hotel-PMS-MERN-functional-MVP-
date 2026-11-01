@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../services/api";
+import ActionMenu from "../../components/common/ActionMenu";
 
 const statuses = ["open", "in_progress", "resolved"];
 
@@ -106,23 +107,6 @@ export default function Support() {
                   {ticket.category} · Submitted {formatDate(ticket.createdAt)}
                 </p>
               </div>
-              <label className="period-filter">
-                Status
-                <select
-                  className="inline-select"
-                  value={ticket.status}
-                  disabled={updating === ticket._id}
-                  onChange={(event) =>
-                    updateStatus(ticket._id, event.target.value)
-                  }
-                >
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status.replaceAll("_", " ")}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
             <p className="support-ticket-message">{ticket.message}</p>
             <div className="support-replies">
@@ -148,14 +132,22 @@ export default function Support() {
                 }
               />
             </label>
-            <button
-              type="button"
-              className="secondary"
+            <ActionMenu
               disabled={updating === ticket._id}
-              onClick={() => sendReply(ticket._id)}
-            >
-              Send reply
-            </button>
+              items={[
+                ...statuses
+                  .filter((status) => status !== ticket.status)
+                  .map((status) => ({
+                    label: `Set status: ${status.replaceAll("_", " ")}`,
+                    onClick: () => updateStatus(ticket._id, status),
+                  })),
+                {
+                  label: "Send reply",
+                  disabled: !replies[ticket._id]?.trim(),
+                  onClick: () => sendReply(ticket._id),
+                },
+              ]}
+            />
             <div className="support-details">
               <div>
                 <b>Hotel</b>

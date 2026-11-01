@@ -11,12 +11,15 @@ const schema = new mongoose.Schema(
     type: { type: String, default: "Standard" },
     floor: { type: String, default: "Ground" },
     capacity: { type: Number, default: 2, min: 1 },
+    airConditioning: { type: Boolean, default: false },
     price: { type: Number, required: true, min: 0 },
     status: {
       type: String,
       enum: ["available", "occupied", "cleaning", "maintenance"],
       default: "available",
     },
+    bookingLockId: { type: String, select: false },
+    bookingLockExpiresAt: { type: Date, select: false },
   },
   { timestamps: true },
 );

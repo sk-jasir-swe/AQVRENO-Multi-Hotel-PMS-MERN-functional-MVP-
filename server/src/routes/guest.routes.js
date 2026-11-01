@@ -6,43 +6,46 @@ import {
   update,
   remove,
 } from "../controllers/guest.controller.js";
-import { protect, allowRoles, requireApprovedHotel } from "../middleware/auth.js";
+import {
+  protect,
+  requirePermission,
+  requireApprovedHotel,
+} from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async.js";
 const router = Router();
-const guestRoles = allowRoles("hotel_owner", "hotel_manager", "receptionist");
 router.get(
   "/guests/:id/history",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager", "receptionist"),
+  requirePermission("guests.view"),
   asyncHandler(guestHistory),
 );
 router.get(
   "/guests",
   protect,
   requireApprovedHotel,
-  guestRoles,
+  requirePermission("guests.view"),
   asyncHandler(list),
 );
 router.post(
   "/guests",
   protect,
   requireApprovedHotel,
-  guestRoles,
+  requirePermission("guests.create"),
   asyncHandler(create),
 );
 router.patch(
   "/guests/:id",
   protect,
   requireApprovedHotel,
-  guestRoles,
+  requirePermission("guests.update"),
   asyncHandler(update),
 );
 router.delete(
   "/guests/:id",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("guests.delete"),
   asyncHandler(remove),
 );
 export default router;

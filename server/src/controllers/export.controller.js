@@ -5,6 +5,7 @@ import Hotel from "../models/Hotel.js";
 import Housekeeping from "../models/Housekeeping.js";
 import Invoice from "../models/Invoice.js";
 import Inventory from "../models/Inventory.js";
+import MaintenanceBlock from "../models/MaintenanceBlock.js";
 import MenuItem from "../models/MenuItem.js";
 import Notification from "../models/Notification.js";
 import Payment from "../models/Payment.js";
@@ -192,6 +193,9 @@ export async function backupHotelData(req, res) {
       SupportTicket.find({ hotel: hotelId }).limit(limit + 1).lean(),
       ActivityLog.find({ hotel: hotelId }).limit(limit + 1).lean(),
     ]);
+  const maintenanceBlocks = await MaintenanceBlock.find({ hotel: hotelId })
+    .limit(limit + 1)
+    .lean();
   const collections = {
     rooms,
     guests,
@@ -207,6 +211,7 @@ export async function backupHotelData(req, res) {
     restaurantOrders,
     supportTickets,
     activityLogs,
+    maintenanceBlocks,
   };
   if (
     Object.values(collections).some((records) => records.length > limit)
@@ -215,6 +220,12 @@ export async function backupHotelData(req, res) {
       message: `Backup limit is ${limit} records per collection; contact support for a larger backup`,
     });
   }
+  const backupAt = new Date();
+  await Hotel.updateOne(
+    { _id: hotelId },
+    { $set: { backupLastDownloadedAt: backupAt } },
+  );
+  hotel.backupLastDownloadedAt = backupAt;
   const date = new Date().toISOString().slice(0, 10);
   res
     .type("application/json")
@@ -224,6 +235,7 @@ export async function backupHotelData(req, res) {
 
 const restoreModels = {
   rooms: Room,
+  maintenanceBlocks: MaintenanceBlock,
   guests: Guest,
   bookings: Booking,
   payments: Payment,
@@ -360,6 +372,10 @@ async function validateRestoreReferences(backup, hotelId) {
   for (const record of backup.collections.bookings || []) {
     addCheck(Guest, [record.guest], includedIds.guests);
     addCheck(Room, [record.room], includedIds.rooms);
+  }
+  for (const record of backup.collections.maintenanceBlocks || []) {
+    addCheck(Room, [record.room], includedIds.rooms);
+    addCheck(User, [record.createdBy], new Set());
   }
   for (const record of backup.collections.payments || []) {
     addCheck(Booking, [record.booking], includedIds.bookings);

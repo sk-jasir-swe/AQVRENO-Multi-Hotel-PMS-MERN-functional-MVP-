@@ -4,18 +4,26 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
+import { env } from "./config/env.js";
+import { requireTrustedOrigin } from "./middleware/trustedOrigin.js";
+import errorMiddleware from "./middleware/errorMiddleware.js";
 import api from "./routes/api.routes.js";
 const app = express();
 app.use(helmet());
+const clientOrigins = env.clientUrl
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 app.use(
   cors({
-    origin: process.env.CLIENT_URL?.split(",") || "http://localhost:5173",
+    origin: clientOrigins,
     credentials: true,
   }),
 );
+app.use("/api", requireTrustedOrigin);
 app.use(express.json({ limit: "25mb" }));
 app.use(cookieParser());
-if (process.env.NODE_ENV !== "production") app.use(morgan("dev"));
+if (env.nodeEnv !== "production") app.use(morgan("dev"));
 app.use(
   "/api",
   rateLimit({
@@ -27,13 +35,5 @@ app.use(
 );
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api", api);
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({
-    message:
-      err.name === "ValidationError"
-        ? err.message
-        : err.message || "Server error",
-  });
-});
+app.use(errorMiddleware);
 export default app;

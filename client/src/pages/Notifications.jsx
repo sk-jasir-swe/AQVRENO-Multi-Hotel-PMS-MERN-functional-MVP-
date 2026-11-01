@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
+import ActionMenu from "../components/common/ActionMenu";
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
@@ -53,9 +54,11 @@ export default function Notifications() {
               <small>{new Date(item.createdAt).toLocaleString()}</small>
             </div>
             {!item.readAt && (
-              <button className="mini-btn" onClick={() => markRead(item)}>
-                Mark read
-              </button>
+              <ActionMenu
+                items={[
+                  { label: "Mark read", onClick: () => markRead(item) },
+                ]}
+              />
             )}
           </article>
         ))}

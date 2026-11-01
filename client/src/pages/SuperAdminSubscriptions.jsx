@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
+import ActionMenu from "../components/common/ActionMenu";
 
 export default function SuperAdminSubscriptions() {
   const [plans, setPlans] = useState([]);
@@ -172,12 +173,15 @@ export default function SuperAdminSubscriptions() {
                   <td>{plan.limits?.rooms ?? "—"}</td>
                   <td>{plan.active ? "Active" : "Inactive"}</td>
                   <td>
-                    <button
-                      className="mini-btn"
-                      onClick={() => updatePlan(plan, !plan.active)}
-                    >
-                      {plan.active ? "Deactivate" : "Activate"}
-                    </button>
+                    <ActionMenu
+                      items={[
+                        {
+                          label: plan.active ? "Deactivate" : "Activate",
+                          danger: plan.active,
+                          onClick: () => updatePlan(plan, !plan.active),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

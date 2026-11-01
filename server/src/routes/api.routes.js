@@ -2,11 +2,13 @@ import { Router } from "express";
 import authRoutes from "./auth.routes.js";
 import activityRoutes from "./activity.routes.js";
 import bookingRoutes from "./booking.routes.js";
+import dailyCloseRoutes from "./dailyClose.routes.js";
 import exportRoutes from "./export.routes.js";
 import guestRoutes from "./guest.routes.js";
 import housekeepingRoutes from "./housekeeping.routes.js";
 import hotelRoutes from "./hotel.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
+import maintenanceRoutes from "./maintenance.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import paymentRoutes from "./payment.routes.js";
 import reportRoutes from "./report.routes.js";
@@ -22,11 +24,13 @@ router.use(
   authRoutes,
   activityRoutes,
   bookingRoutes,
+  dailyCloseRoutes,
   guestRoutes,
   roomRoutes,
   paymentRoutes,
   hotelRoutes,
   inventoryRoutes,
+  maintenanceRoutes,
   restaurantRoutes,
   reportRoutes,
   housekeepingRoutes,

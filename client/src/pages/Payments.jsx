@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../services/api";
 import { downloadCsv } from "../services/download";
+import ActionMenu from "../components/common/ActionMenu";
+import { hasPermission } from "../utils/permissions";
 
 function filterParams(period, dateFrom, dateTo) {
   if (period === "all") return undefined;
@@ -48,7 +50,9 @@ export default function Payments() {
   ) {
     try {
       const [bookingResponse, paymentResponse] = await Promise.all([
-        api.get("/bookings", { signal }),
+        hasPermission(user, "payments.record")
+          ? api.get("/bookings", { signal })
+          : Promise.resolve({ data: { items: [] } }),
         params === null
           ? Promise.resolve({ data: { payments: [] } })
           : api.get("/payments", { params, signal }),
@@ -65,7 +69,7 @@ export default function Payments() {
     const controller = new AbortController();
     load(filterParams(period, dateFrom, dateTo), controller.signal);
     return () => controller.abort();
-  }, [period, dateFrom, dateTo]);
+  }, [period, dateFrom, dateTo, user]);
   useEffect(() => {
     if (!["hotel_owner", "hotel_manager"].includes(user?.role)) return;
     const controller = new AbortController();
@@ -150,7 +154,7 @@ export default function Payments() {
         )}
       </div>
       {error && <div className="notice">{error}</div>}
-      <form className="panel form-grid" onSubmit={save}>
+      {hasPermission(user, "payments.record") && <form className="panel form-grid" onSubmit={save}>
         <div className="form-title">Record a payment</div>
         <label>
           Reservation
@@ -215,7 +219,7 @@ export default function Payments() {
         <div className="form-actions">
           <button className="primary">Save payment</button>
         </div>
-      </form>
+      </form>}
       {["hotel_owner", "hotel_manager"].includes(user?.role) && (
         <section className="panel reconciliation-panel">
           <div className="panel-head">
@@ -353,15 +357,15 @@ export default function Payments() {
                         : payment.status}
                   </td>
                   <td>
-                    {payment.status === "captured" &&
-                      ["hotel_owner", "hotel_manager"].includes(user?.role) && (
-                      <button
-                        className="mini-btn muted-btn"
-                        onClick={() => refund(payment)}
-                      >
-                        Refund
-                      </button>
-                    )}
+                    <ActionMenu
+                      items={[
+                        payment.status === "captured" && {
+                            label: "Refund",
+                            danger: true,
+                            onClick: () => refund(payment),
+                          },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

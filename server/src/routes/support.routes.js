@@ -6,35 +6,28 @@ import {
   supportTicketsList,
   updateTicketStatus,
 } from "../controllers/support.controller.js";
-import { allowRoles, protect } from "../middleware/auth.js";
+import { allowRoles, protect, requirePermission } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async.js";
 
 const router = Router();
-const hotelRoles = allowRoles(
-  "hotel_owner",
-  "hotel_manager",
-  "receptionist",
-  "housekeeping",
-  "restaurant_staff",
-);
 const superAdminOnly = allowRoles("super_admin");
 
 router.post(
   "/support/tickets",
   protect,
-  hotelRoles,
+  requirePermission("support.manage"),
   asyncHandler(createTicket),
 );
 router.get(
   "/support/tickets",
   protect,
-  hotelRoles,
+  requirePermission("support.manage"),
   asyncHandler(hotelTicketsList),
 );
 router.post(
   "/support/tickets/:id/replies",
   protect,
-  hotelRoles,
+  requirePermission("support.manage"),
   asyncHandler(replyToTicket),
 );
 router.get(

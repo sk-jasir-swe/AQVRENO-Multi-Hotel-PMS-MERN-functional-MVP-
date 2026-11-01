@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   hotelSettings,
+  updateHotelFloors,
   updateHotelSettings,
 } from "../controllers/hotel.controller.js";
 import { protect, allowRoles, requireApprovedHotel } from "../middleware/auth.js";
@@ -19,5 +20,12 @@ router.patch(
   requireApprovedHotel,
   allowRoles("hotel_owner"),
   asyncHandler(updateHotelSettings),
+);
+router.patch(
+  "/hotel/settings/floors",
+  protect,
+  requireApprovedHotel,
+  allowRoles("hotel_owner", "hotel_manager"),
+  asyncHandler(updateHotelFloors),
 );
 export default router;

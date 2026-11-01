@@ -42,6 +42,9 @@ export default function Login() {
           onChange={(e) => set({ ...form, password: e.target.value })}
           placeholder="Your password"
         />
+        <p className="auth-foot">
+          <Link to="/forgot-password">Forgot your password?</Link>
+        </p>
         {err && <p className="error">{err}</p>}
         <button className="primary full" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}

@@ -1,11 +1,57 @@
 import Hotel from "../models/Hotel.js";
+import Room from "../models/Room.js";
 import { isValidPhone } from "../utils/phone.js";
 
 export async function hotelSettings(req, res) {
   const hotel = await Hotel.findById(req.user.hotel._id).select(
-    "name email phone phoneCountryCode address city country gstin gstRate cancellationCutoffHours cancellationRefundPercent",
+    "name email phone phoneCountryCode address city country gstin gstRate cancellationCutoffHours cancellationRefundPercent floors backupLastDownloadedAt",
   );
   res.json({ hotel });
+}
+
+export async function updateHotelFloors(req, res) {
+  const { floors } = req.body;
+  if (
+    !Array.isArray(floors) ||
+    floors.length < 1 ||
+    floors.length > 50 ||
+    floors.some(
+      (floor) =>
+        typeof floor !== "string" ||
+        !floor.trim() ||
+        floor.trim().length > 40,
+    )
+  ) {
+    return res.status(400).json({
+      message: "Add between 1 and 50 valid floor names (up to 40 characters each)",
+    });
+  }
+  const normalizedFloors = floors.map((floor) => floor.trim());
+  if (normalizedFloors[0].toLowerCase() !== "ground")
+    return res.status(400).json({ message: "Ground floor must be first" });
+  if (
+    new Set(normalizedFloors.map((floor) => floor.toLowerCase())).size !==
+    normalizedFloors.length
+  )
+    return res.status(400).json({ message: "Floor names must be unique" });
+
+  const hotelId = req.user.hotel._id;
+  const assignedRoom = await Room.exists({
+    hotel: hotelId,
+    floor: { $exists: true, $nin: normalizedFloors },
+  });
+  if (assignedRoom)
+    return res.status(409).json({
+      message: "Move rooms from removed floors before removing those floors",
+    });
+
+  const hotel = await Hotel.findByIdAndUpdate(
+    hotelId,
+    { $set: { floors: normalizedFloors } },
+    { new: true, runValidators: true },
+  ).select("floors");
+  if (!hotel) return res.status(404).json({ message: "Hotel not found" });
+  res.json({ floors: hotel.floors });
 }
 
 export async function updateHotelSettings(req, res) {

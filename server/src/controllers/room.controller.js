@@ -1,4 +1,5 @@
 import Booking from "../models/Booking.js";
+import MaintenanceBlock from "../models/MaintenanceBlock.js";
 import Room from "../models/Room.js";
 import { assertSubscriptionCapacity } from "../services/subscriptionLimits.js";
 import { recordActivity } from "../services/activityLog.js";
@@ -20,7 +21,26 @@ export async function list(req, res) {
 }
 
 export async function create(req, res) {
-  const { number, type, floor, capacity, price, status } = req.body;
+  const {
+    number,
+    type,
+    floor,
+    capacity,
+    airConditioning,
+    price,
+    status,
+  } = req.body;
+  if (
+    (floor !== undefined && typeof floor !== "string") ||
+    (capacity !== undefined &&
+      (!Number.isInteger(Number(capacity)) || Number(capacity) < 1)) ||
+    (airConditioning !== undefined &&
+      typeof airConditioning !== "boolean")
+  ) {
+    return res.status(400).json({
+      message: "Enter a valid floor, whole-number capacity and AC selection",
+    });
+  }
   if (
     typeof number !== "string" ||
     !number.trim() ||
@@ -44,8 +64,9 @@ export async function create(req, res) {
     hotel: req.user.hotel._id,
     number: number.trim(),
     type,
-    floor,
-    capacity,
+    floor: typeof floor === "string" && floor.trim() ? floor.trim() : "Ground",
+    capacity: capacity === undefined ? 2 : Number(capacity),
+    airConditioning: airConditioning === true,
     price: Number(price),
     status: status || "available",
   });
@@ -87,13 +108,19 @@ export async function remove(req, res) {
   const hotel = req.user.hotel._id;
   const room = await Room.findOne({ _id: req.params.id, hotel });
   if (!room) return res.status(404).json({ message: "Room not found" });
-  const hasBookings = await Booking.exists({
-    hotel,
-    room: room._id,
-  });
-  if (hasBookings)
+  const [hasBookings, hasMaintenanceHistory] = await Promise.all([
+    Booking.exists({
+      hotel,
+      room: room._id,
+    }),
+    MaintenanceBlock.exists({
+      hotel,
+      room: room._id,
+    }),
+  ]);
+  if (hasBookings || hasMaintenanceHistory)
     return res.status(409).json({
-      message: "Rooms with reservation history cannot be deleted",
+      message: "Rooms with reservation or maintenance history cannot be deleted",
     });
   await room.deleteOne();
   await recordActivity(req, "room.deleted", "Room", room._id, {

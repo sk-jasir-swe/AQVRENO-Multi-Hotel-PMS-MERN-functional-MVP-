@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useSelector } from "react-redux";
 import api from "../services/api";
 import { downloadCsv } from "../services/download";
 import PhoneInput, { formatPhone } from "../components/PhoneInput";
+import ActionMenu from "../components/common/ActionMenu";
+import { sortFloorNames } from "../utils/floors";
+import { hasPermission } from "../utils/permissions";
 const titles = {
   rooms: "Room management",
   guests: "Guest directory",
@@ -24,10 +27,26 @@ const filterParams = (period, dateFrom, dateTo) => {
     return dateFrom && dateTo ? { period, from: dateFrom, to: dateTo } : null;
   return { period };
 };
+function dateKey(value) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const date = Object.fromEntries(
+    parts.map(({ type, value: part }) => [type, part]),
+  );
+  return `${date.year}-${date.month}-${date.day}`;
+}
 export default function Resource() {
   const { kind } = useParams();
   const user = useSelector((state) => state.auth.user);
   const title = titles[kind] || "Workspace";
+  const canAddResource =
+    kind === "rooms"
+      ? ["hotel_owner", "hotel_manager"].includes(user?.role)
+      : hasPermission(user, `${kind}.create`);
   const [items, set] = useState([]),
     [guests, setGuests] = useState([]),
     [rooms, setRooms] = useState([]),
@@ -37,7 +56,32 @@ export default function Resource() {
   const [period, setPeriod] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [f, setForm] = useState({});
+  const [bookingHistory, setBookingHistory] = useState(null);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [configuredFloors, setConfiguredFloors] = useState(["Ground"]);
+  const [selectedFloor, setSelectedFloor] = useState("all");
+  async function showBookingHistory(booking) {
+    setBookingHistory({ booking, items: [], loading: true, error: "" });
+    try {
+      const response = await api.get(`/bookings/${booking._id}/history`);
+      setBookingHistory({
+        booking,
+        items: response.data.items,
+        loading: false,
+        error: "",
+      });
+    } catch (cause) {
+      setBookingHistory({
+        booking,
+        items: [],
+        loading: false,
+        error: cause.message || "Unable to load reservation history",
+      });
+    }
+  }
   async function refresh() {
     const params =
       kind === "guests" || kind === "bookings"
@@ -45,63 +89,99 @@ export default function Resource() {
         : undefined;
     if (params === null) {
       set([]);
+      setLoadingRecords(false);
       return;
     }
+    setLoadingRecords(true);
     try {
       const r = await api.get("/" + kind, { params });
       set(r.data.items);
     } catch (e) {
-      set([]);
       error(e.message || "Could not load records");
+    } finally {
+      setLoadingRecords(false);
     }
   }
   useEffect(() => {
     toggle(false);
     setForm({});
+    setEditingRoom(null);
+    setGuests([]);
+    setRooms([]);
   }, [kind]);
   useEffect(() => {
     const controller = new AbortController();
     set([]);
-    setGuests([]);
-    setRooms([]);
     error("");
+    setLoadingRecords(true);
     const params =
       kind === "guests" || kind === "bookings"
         ? filterParams(period, dateFrom, dateTo)
         : undefined;
-    const listRequest =
-      params === null
-        ? Promise.resolve(null)
-        : api.get("/" + kind, { params, signal: controller.signal });
-    const requests = [listRequest];
-    if (kind === "bookings") {
-      requests.push(
-        api.get("/guests", {
-          params: { excludeCheckedIn: true },
-          signal: controller.signal,
-        }),
-        api.get("/rooms", { signal: controller.signal }),
-      );
+    if (params === null) {
+      setLoadingRecords(false);
+      return () => controller.abort();
     }
-    Promise.all(requests)
-      .then(([records, guestRecords, roomRecords]) => {
-        set(records?.data.items || []);
-        if (guestRecords) setGuests(guestRecords.data.items);
-        if (roomRecords) setRooms(roomRecords.data.items);
-      })
+    api
+      .get("/" + kind, { params, signal: controller.signal })
+      .then((records) => set(records.data.items))
       .catch((e) => {
-        if (!controller.signal.aborted) {
-          set([]);
+        if (!controller.signal.aborted)
           error(e.message || "Could not load records");
-        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingRecords(false);
       });
     return () => controller.abort();
   }, [kind, period, dateFrom, dateTo]);
+  useEffect(() => {
+    if (kind !== "bookings" || !show) return undefined;
+    const controller = new AbortController();
+    setLoadingOptions(true);
+    Promise.all([
+      api.get("/guests", {
+        params: { excludeCheckedIn: true },
+        signal: controller.signal,
+      }),
+      api.get("/rooms", { signal: controller.signal }),
+    ])
+      .then(([guestRecords, roomRecords]) => {
+        setGuests(guestRecords.data.items);
+        setRooms(roomRecords.data.items);
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted)
+          error(e.message || "Could not load reservation form options");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingOptions(false);
+      });
+    return () => controller.abort();
+  }, [kind, show]);
+  useEffect(() => {
+    if (kind !== "rooms") return undefined;
+    const controller = new AbortController();
+    api
+      .get("/hotel/settings", { signal: controller.signal })
+      .then((response) =>
+        setConfiguredFloors(
+          response.data.hotel.floors?.length
+            ? response.data.hotel.floors
+            : ["Ground"],
+        ),
+      )
+      .catch((cause) => {
+        if (!controller.signal.aborted)
+          error(cause.message || "Unable to load hotel floors");
+      });
+    return () => controller.abort();
+  }, [kind]);
   const fields =
     kind === "rooms"
       ? [
           ["number", "Room number"],
           ["type", "Room type"],
+          ["floor", "Floor"],
           ["price", "Price per night"],
           ["capacity", "Capacity"],
         ]
@@ -131,6 +211,14 @@ export default function Resource() {
   const additionalGuests = Array.isArray(f.additionalGuests)
     ? f.additionalGuests
     : [];
+  const roomFloors =
+    kind === "rooms"
+      ? sortFloorNames([
+          ...configuredFloors,
+          ...items.map((room) => room.floor || "Ground"),
+        ])
+      : [];
+  const roomFloorOptions = roomFloors.length ? roomFloors : ["Ground"];
   async function save(e) {
     e.preventDefault();
     loading(true);
@@ -147,13 +235,20 @@ export default function Resource() {
       if (kind === "rooms") {
         body.price = Number(body.price);
         body.capacity = Number(body.capacity || 2);
+        body.floor = body.floor?.trim() || "Ground";
+        body.airConditioning = body.airConditioning === "true";
       }
       if (kind === "bookings") {
         body.checkIn = f.checkIn;
         body.checkOut = f.checkOut;
       }
-      await api.post("/" + kind, body);
+      if (kind === "rooms" && editingRoom) {
+        await api.patch(`/rooms/${editingRoom._id}`, body);
+      } else {
+        await api.post("/" + kind, body);
+      }
       setForm({});
+      setEditingRoom(null);
       toggle(false);
       refresh();
     } catch (x) {
@@ -169,6 +264,14 @@ export default function Resource() {
         if (!cancellationReason?.trim()) return;
         body = { ...body, cancellationReason: cancellationReason.trim() };
       }
+      if (
+        kind === "bookings" &&
+        body.status === "no_show" &&
+        !window.confirm(
+          "Mark this reservation as no-show? Any payments already received will not be refunded automatically.",
+        )
+      )
+        return;
       await api.patch(`/${kind}/${id}`, body);
       if (kind === "bookings") {
         const [guestRecords, roomRecords] = await Promise.all([
@@ -200,16 +303,30 @@ export default function Resource() {
           <h1>{title}</h1>
           <p>Manage your {kind} in one place.</p>
         </div>
-        <button className="primary" onClick={() => toggle(!show)}>
-          <Plus size={17} /> Add {kind.slice(0, -1)}
-        </button>
+        {canAddResource && (
+          <button
+            className="primary"
+            onClick={() => {
+              setEditingRoom(null);
+              setForm({});
+              toggle((current) => !current);
+            }}
+          >
+            <Plus size={17} /> Add {kind.slice(0, -1)}
+          </button>
+        )}
       </div>
       {err && <div className="notice">{err}</div>}
       {show && (
         <form className="panel form-grid" onSubmit={save}>
-          <div className="form-title">Create {kind.slice(0, -1)}</div>
+          <div className="form-title">
+            {editingRoom ? "Edit room details" : `Create ${kind.slice(0, -1)}`}
+          </div>
           {kind === "bookings" ? (
             <>
+              {loadingOptions && (
+                <p className="booking-hint">Loading guests and rooms…</p>
+              )}
               <label>
                 Guest
                 <select
@@ -314,7 +431,24 @@ export default function Resource() {
           ) : (
             <>
               {fields.map(([name, label]) => (
-                name === "phone" && kind === "guests" ? (
+                name === "floor" && kind === "rooms" ? (
+                  <label key={name}>
+                    {label}
+                    <select
+                      required
+                      value={f.floor || "Ground"}
+                      onChange={(event) =>
+                        setForm({ ...f, floor: event.target.value })
+                      }
+                    >
+                      {roomFloorOptions.map((floor) => (
+                        <option key={floor} value={floor}>
+                          {floor} Floor
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : name === "phone" && kind === "guests" ? (
                   <PhoneInput
                     key={name}
                     label={label}
@@ -327,11 +461,12 @@ export default function Resource() {
                   />
                 ) : (
                   <label key={name}>
-                    {label}
+                    {name === "capacity" ? "Capacity (guests)" : label}
                     <input
                       required={
                         name === "number" || name === "price" || name === "name"
                       }
+                      min={name === "capacity" ? 1 : undefined}
                       name={name}
                       type={
                         name === "price" || name === "capacity"
@@ -528,33 +663,185 @@ export default function Resource() {
             </>
           )}
           {kind === "rooms" && (
-            <label>
-              Initial status
-              <select
-                value={f.status || "available"}
-                onChange={(e) => setForm({ ...f, status: e.target.value })}
-              >
-                <option>available</option>
-                <option>cleaning</option>
-                <option>maintenance</option>
-              </select>
-            </label>
+            <>
+              <label>
+                Air conditioning
+                <select
+                  value={f.airConditioning ?? "false"}
+                  onChange={(e) =>
+                    setForm({ ...f, airConditioning: e.target.value })
+                  }
+                >
+                  <option value="true">AC</option>
+                  <option value="false">Non-AC</option>
+                </select>
+              </label>
+              {!editingRoom && (
+                <label>
+                  Initial status
+                  <select
+                    value={f.status || "available"}
+                    onChange={(e) => setForm({ ...f, status: e.target.value })}
+                  >
+                    <option>available</option>
+                    <option>cleaning</option>
+                    <option>maintenance</option>
+                  </select>
+                </label>
+              )}
+            </>
           )}
           <div className="form-actions">
             <button className="primary" disabled={busy}>
-              {busy ? "Saving…" : "Save record"}
+              {busy ? "Saving…" : editingRoom ? "Save changes" : "Save record"}
             </button>
             <button
               type="button"
               className="secondary"
-              onClick={() => toggle(false)}
+              onClick={() => {
+                toggle(false);
+                setEditingRoom(null);
+                setForm({});
+              }}
             >
               Cancel
             </button>
           </div>
         </form>
       )}
-      <section className="panel table-panel">
+      {kind === "rooms" ? (
+        <section className="room-floor-list">
+          <div className="room-floor-filter">
+            <label className="period-filter">
+              Show floor
+              <select
+                className="inline-select"
+                value={selectedFloor}
+                onChange={(event) => setSelectedFloor(event.target.value)}
+                aria-label="Filter rooms by floor"
+              >
+                <option value="all">All floors</option>
+                {roomFloors.map((floor) => (
+                  <option value={floor} key={floor}>
+                    {floor} Floor
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {loadingRecords ? (
+            <div className="panel empty">Loading rooms…</div>
+          ) : roomFloors.length ? (
+            roomFloors
+              .filter(
+                (floor) =>
+                  selectedFloor === "all" || selectedFloor === floor,
+              )
+              .map((floor) => (
+              <div className="panel room-floor-section" key={floor}>
+                <div className="room-floor-heading">
+                  <div>
+                    <h3>{floor} Floor</h3>
+                    <p>
+                      {
+                        items.filter(
+                          (room) => (room.floor || "Ground") === floor,
+                        ).length
+                      }{" "}
+                      rooms
+                    </p>
+                  </div>
+                </div>
+                <div className="room-floor-grid">
+                  {items
+                    .filter(
+                      (room) => (room.floor || "Ground") === floor,
+                    )
+                    .sort((a, b) =>
+                      a.number.localeCompare(b.number, undefined, {
+                        numeric: true,
+                      }),
+                    )
+                    .map((room) => (
+                      <article className="room-card" key={room._id}>
+                        <div className="room-card-top">
+                          <div>
+                            <span className="room-card-label">ROOM</span>
+                            <h4>{room.number}</h4>
+                          </div>
+                          <ActionMenu
+                            items={[
+                              ...(["hotel_owner", "hotel_manager"].includes(
+                                user?.role,
+                              )
+                                ? [
+                                    {
+                                      label: "Edit room details",
+                                      onClick: () => {
+                                        setEditingRoom(room);
+                                        setForm({
+                                          number: room.number,
+                                          type: room.type || "Standard",
+                                          floor: room.floor || "Ground",
+                                          capacity: room.capacity || 2,
+                                          airConditioning: room.airConditioning
+                                            ? "true"
+                                            : "false",
+                                          price: room.price,
+                                        });
+                                        toggle(true);
+                                        window.scrollTo({
+                                          top: 0,
+                                          behavior: "smooth",
+                                        });
+                                      },
+                                    },
+                                    ...["available", "occupied", "cleaning", "maintenance"]
+                                      .filter((status) => status !== room.status)
+                                      .map((status) => ({
+                                        label: `Set status: ${status.replaceAll("_", " ")}`,
+                                        onClick: () =>
+                                          update(room._id, { status }),
+                                      })),
+                                    {
+                                      label: "Delete room",
+                                      danger: true,
+                                      onClick: () => del(room._id),
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          />
+                        </div>
+                        <p className="room-card-type">
+                          {room.type || "Standard"} ·{" "}
+                          {room.airConditioning ? "AC" : "Non-AC"}
+                        </p>
+                        <div className="room-card-details">
+                          <span>
+                            {room.capacity === 1
+                              ? "Single occupancy"
+                              : `Up to ${room.capacity || 2} guests`}
+                          </span>
+                          <b>₹{room.price} / night</b>
+                        </div>
+                        <span className={`status ${room.status}`}>
+                          {room.status.replaceAll("_", " ")}
+                        </span>
+                      </article>
+                    ))}
+                  {items.every(
+                    (room) => (room.floor || "Ground") !== floor,
+                  ) && <p className="booking-hint">No rooms on this floor yet.</p>}
+                </div>
+              </div>
+              ))
+          ) : (
+            <div className="panel empty">No rooms yet. Add your first room.</div>
+          )}
+        </section>
+      ) : (
+        <section className="panel table-panel">
         <div className="panel-head">
           <div>
             <h3>All {kind}</h3>
@@ -663,18 +950,9 @@ export default function Resource() {
                         <td>{x.type}</td>
                         <td>₹{x.price}</td>
                         <td>
-                          <select
-                            className="inline-select"
-                            value={x.status}
-                            onChange={(e) =>
-                              update(x._id, { status: e.target.value })
-                            }
-                          >
-                            <option>available</option>
-                            <option>occupied</option>
-                            <option>cleaning</option>
-                            <option>maintenance</option>
-                          </select>
+                          <span className={`status ${x.status}`}>
+                            {x.status.replaceAll("_", " ")}
+                          </span>
                         </td>
                       </>
                     ) : kind === "guests" ? (
@@ -742,19 +1020,9 @@ export default function Resource() {
                         <td>₹{x.nightlyRate ?? x.room?.price ?? "—"}</td>
                         <td>₹{x.total}</td>
                         <td>
-                          <select
-                            className="inline-select"
-                            value={x.status}
-                            onChange={(e) =>
-                              update(x._id, { status: e.target.value })
-                            }
-                          >
-                            <option>confirmed</option>
-                            <option value="checked_in" disabled>checked_in</option>
-                            <option>checked_out</option>
-                            <option>cancelled</option>
-                            <option>no_show</option>
-                          </select>
+                          <span className={`status ${x.status}`}>
+                            {x.status.replaceAll("_", " ")}
+                          </span>
                           {x.status === "cancelled" && (
                             <>
                               <small>
@@ -775,31 +1043,67 @@ export default function Resource() {
                       </>
                     )}
                     <td>
-                      {kind === "guests" && (
-                        <>
-                          <Link className="mini-btn" to={`/guests/${x._id}/history`}>
-                            History
-                          </Link>
-                          <button
-                            className={`mini-btn ${x.active === false ? "" : "muted-btn"}`}
-                            onClick={() =>
-                              update(x._id, { active: x.active === false })
-                            }
-                          >
-                            {x.active === false ? "Reactivate" : "Deactivate"}
-                          </button>
-                        </>
-                      )}
-                      <button
-                        className="icon-btn danger"
-                        onClick={() => del(x._id)}
-                        aria-label={`Delete ${kind.slice(0, -1)}`}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <ActionMenu
+                        items={[
+                          ...(kind === "rooms"
+                            ? ["available", "occupied", "cleaning", "maintenance"]
+                                .filter((status) => status !== x.status)
+                                .map((status) => ({
+                                  label: `Set status: ${status.replaceAll("_", " ")}`,
+                                  onClick: () => update(x._id, { status }),
+                                }))
+                            : []),
+                          ...(kind === "bookings"
+                            ? ["confirmed", "checked_out", "cancelled"]
+                                .filter((status) => status !== x.status)
+                                .map((status) => ({
+                                  label: `Set status: ${status.replaceAll("_", " ")}`,
+                                  onClick: () => update(x._id, { status }),
+                                }))
+                            : []),
+                          kind === "bookings" && {
+                            label: "Change history",
+                            onClick: () => showBookingHistory(x),
+                          },
+                          kind === "bookings" &&
+                            x.status === "confirmed" &&
+                            dateKey(x.checkIn) <= dateKey(new Date()) && {
+                              label: "Mark no-show",
+                              danger: true,
+                              onClick: () => update(x._id, { status: "no_show" }),
+                            },
+                          kind === "guests" &&
+                            hasPermission(user, "guests.view") && {
+                            label: "Stay history",
+                            to: `/guests/${x._id}/history`,
+                          },
+                          kind === "guests" && {
+                            label: x.active === false ? "Reactivate" : "Deactivate",
+                            onClick: () =>
+                              update(x._id, { active: x.active === false }),
+                          },
+                          {
+                            label: `Delete ${kind.slice(0, -1)}`,
+                            danger: true,
+                            onClick: () => del(x._id),
+                          } &&
+                            (kind === "guests" || kind === "bookings"),
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))
+              ) : loadingRecords ? (
+                <tr>
+                  <td
+                    colSpan={
+                      kind === "bookings" ? 10 : kind === "guests" ? 7 : 5
+                    }
+                    className="empty"
+                  >
+                    Loading {kind}…
+                  </td>
+                </tr>
               ) : (
                 <tr>
                   <td
@@ -815,7 +1119,67 @@ export default function Resource() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      )}
+      {bookingHistory && (
+        <div
+          className="history-backdrop"
+          onClick={() => setBookingHistory(null)}
+        >
+          <section
+            className="panel history-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-history-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="panel-head">
+              <div>
+                <h3 id="booking-history-title">
+                  Reservation history · {bookingHistory.booking.guest?.name || "Guest"}
+                </h3>
+                <p>
+                  Room {bookingHistory.booking.room?.number || "—"} ·{" "}
+                  {bookingHistory.items.length} changes
+                </p>
+              </div>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => setBookingHistory(null)}
+              >
+                Close
+              </button>
+            </div>
+            {bookingHistory.error && (
+              <div className="notice">{bookingHistory.error}</div>
+            )}
+            {bookingHistory.loading ? (
+              <div className="empty">Loading reservation history…</div>
+            ) : (
+              <div className="history-list">
+                {bookingHistory.items.map((entry) => (
+                  <article className="history-entry" key={entry._id}>
+                    <b>{entry.action.replaceAll(".", " ")}</b>
+                    <small>
+                      {new Date(entry.createdAt).toLocaleString("en-IN")} ·{" "}
+                      {entry.actor?.name || "Former staff"}
+                    </small>
+                    {Object.keys(entry.details || {}).length > 0 && (
+                      <pre>{JSON.stringify(entry.details, null, 2)}</pre>
+                    )}
+                  </article>
+                ))}
+                {!bookingHistory.items.length && (
+                  <div className="empty">
+                    No changes have been recorded for this reservation.
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </>
   );
 }

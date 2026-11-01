@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../services/api";
+import ActionMenu from "../../components/common/ActionMenu";
 
 export default function SuperAdminHotels() {
   const [hotels, setHotels] = useState([]);
@@ -97,41 +98,24 @@ export default function SuperAdminHotels() {
                     </span>
                   </td>
                   <td>
-                    <div className="action-row">
-                      {hotel.status !== "approved" && (
-                        <button
-                          className="mini-btn"
-                          disabled={updating === hotel._id}
-                          onClick={() =>
-                            updateStatus(hotel._id, "approved")
-                          }
-                        >
-                          Approve
-                        </button>
-                      )}
-                      {hotel.status !== "suspended" && (
-                        <button
-                          className="mini-btn muted-btn"
-                          disabled={updating === hotel._id}
-                          onClick={() =>
-                            updateStatus(hotel._id, "suspended")
-                          }
-                        >
-                          Suspend
-                        </button>
-                      )}
-                      {hotel.status === "suspended" && (
-                        <button
-                          className="mini-btn"
-                          disabled={updating === hotel._id}
-                          onClick={() =>
-                            updateStatus(hotel._id, "pending")
-                          }
-                        >
-                          Reopen
-                        </button>
-                      )}
-                    </div>
+                    <ActionMenu
+                      disabled={updating === hotel._id}
+                      items={[
+                        hotel.status !== "approved" && {
+                          label: "Approve",
+                          onClick: () => updateStatus(hotel._id, "approved"),
+                        },
+                        hotel.status !== "suspended" && {
+                          label: "Suspend",
+                          danger: true,
+                          onClick: () => updateStatus(hotel._id, "suspended"),
+                        },
+                        hotel.status === "suspended" && {
+                          label: "Reopen",
+                          onClick: () => updateStatus(hotel._id, "pending"),
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

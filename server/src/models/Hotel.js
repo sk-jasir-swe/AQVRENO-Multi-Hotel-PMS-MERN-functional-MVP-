@@ -13,6 +13,8 @@ const schema = new mongoose.Schema(
     restaurantGstRate: { type: Number, min: 0, max: 100, default: 0 },
     cancellationCutoffHours: { type: Number, min: 0, max: 8760, default: 24 },
     cancellationRefundPercent: { type: Number, min: 0, max: 100, default: 100 },
+    floors: { type: [String], default: ["Ground"] },
+    backupLastDownloadedAt: Date,
     invoiceSequence: { type: Number, default: 0 },
     status: {
       type: String,

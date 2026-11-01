@@ -11,6 +11,10 @@ const slice = createSlice({
     setUser: (s, a) => {
       s.user = a.payload;
     },
+    clearAuth: (s) => {
+      s.user = null;
+      s.loading = false;
+    },
   },
   extraReducers: (b) =>
     b
@@ -23,5 +27,5 @@ const slice = createSlice({
         s.loading = false;
       }),
 });
-export const { setUser } = slice.actions;
+export const { setUser, clearAuth } = slice.actions;
 export default slice.reducer;

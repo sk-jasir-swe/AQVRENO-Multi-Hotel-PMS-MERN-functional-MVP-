@@ -2,12 +2,26 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import { formatPhone } from "../components/PhoneInput";
+import ActionMenu from "../components/common/ActionMenu";
 
 const tabs = [
   ["arrivals", "Check in / out"],
   ["inHouse", "In house"],
   ["departures", "Departures today"],
 ];
+
+function dateKey(value) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const date = Object.fromEntries(
+    parts.map(({ type, value: part }) => [type, part]),
+  );
+  return `${date.year}-${date.month}-${date.day}`;
+}
 
 function printInvoice({ invoice, hotel, booking }, windowRef) {
   const escape = (value) =>
@@ -57,6 +71,13 @@ export default function FrontDesk() {
   }, [load]);
 
   async function changeStatus(booking, status, verification = {}) {
+    if (
+      status === "no_show" &&
+      !window.confirm(
+        "Mark this reservation as no-show? Any payments already received will not be refunded automatically.",
+      )
+    )
+      return;
     try {
       await api.patch(`/bookings/${booking._id}`, { status, ...verification });
       setCheckInId("");
@@ -144,35 +165,29 @@ export default function FrontDesk() {
                   <td>{new Date(booking.checkOut).toLocaleDateString()}</td>
                   <td>{booking.paymentStatus}</td>
                   <td>
-                    <div className="action-row">
-                      {booking.status === "confirmed" && (
-                        <button
-                          className="mini-btn"
-                          onClick={() => setCheckInId(
-                            checkInId === booking._id ? "" : booking._id,
-                          )}
-                        >
-                          Check in
-                        </button>
-                      )}
-                      {booking.status === "checked_in" && (
-                        <button
-                          className="mini-btn"
-                          onClick={() => changeStatus(booking, "checked_out")}
-                        >
-                          Check out
-                        </button>
-                      )}
-                      <button
-                        className="mini-btn"
-                        onClick={() => invoice(booking)}
-                      >
-                        Invoice
-                      </button>
-                      <Link className="mini-btn" to="/payments">
-                        Payment
-                      </Link>
-                    </div>
+                    <ActionMenu
+                      items={[
+                        booking.status === "confirmed" && {
+                          label: "Check in",
+                          onClick: () =>
+                            setCheckInId(
+                              checkInId === booking._id ? "" : booking._id,
+                            ),
+                        },
+                        booking.status === "checked_in" && {
+                          label: "Check out",
+                          onClick: () => changeStatus(booking, "checked_out"),
+                        },
+                        booking.status === "confirmed" &&
+                          dateKey(booking.checkIn) <= dateKey(new Date()) && {
+                            label: "Mark no-show",
+                            danger: true,
+                            onClick: () => changeStatus(booking, "no_show"),
+                          },
+                        { label: "Invoice", onClick: () => invoice(booking) },
+                        { label: "Payment", to: "/payments" },
+                      ]}
+                    />
                     {checkInId === booking._id && (
                       <div className="checkin-verification">
                         <label>

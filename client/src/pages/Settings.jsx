@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../services/api";
 import {
-  BACKUP_LAST_DOWNLOADED_KEY,
   downloadBackup,
 } from "../services/download";
 import PhoneInput from "../components/PhoneInput";
+import { nextFloorName, sortFloorNames } from "../utils/floors";
 
 export default function Settings() {
   const user = useSelector((state) => state.auth.user);
@@ -16,16 +16,26 @@ export default function Settings() {
   const [backup, setBackup] = useState(null);
   const [restorePreview, setRestorePreview] = useState(null);
   const [restoring, setRestoring] = useState(false);
+  const [floors, setFloors] = useState(["Ground"]);
+  const [savingFloors, setSavingFloors] = useState(false);
   useEffect(() => {
-    const lastBackup =
-      window.localStorage.getItem(BACKUP_LAST_DOWNLOADED_KEY) ||
-      window.localStorage.getItem("staypro-backup-last-downloaded");
-    setBackupReminder(
-      !lastBackup || Date.now() - new Date(lastBackup).getTime() > 7 * 86400000,
-    );
-    api
-      .get("/hotel/settings")
-      .then((response) => setForm(response.data.hotel))
+    Promise.all([api.get("/hotel/settings"), api.get("/rooms")])
+      .then(([settingsResponse, roomResponse]) => {
+        const hotel = settingsResponse.data.hotel;
+        setForm(hotel);
+        const lastBackup = hotel.backupLastDownloadedAt;
+        const lastBackupTime = lastBackup ? new Date(lastBackup).getTime() : 0;
+        setBackupReminder(
+          !lastBackupTime ||
+            Date.now() - lastBackupTime > 7 * 86400000,
+        );
+        setFloors(
+          sortFloorNames([
+            ...(hotel.floors?.length ? hotel.floors : ["Ground"]),
+            ...roomResponse.data.items.map((room) => room.floor || "Ground"),
+          ]),
+        );
+      })
       .catch((cause) => setError(cause.message || "Unable to load hotel settings"));
   }, []);
 
@@ -47,10 +57,32 @@ export default function Settings() {
     }
   }
 
+  async function saveFloors() {
+    setError("");
+    setMessage("");
+    setSavingFloors(true);
+    try {
+      const response = await api.patch("/hotel/settings/floors", {
+        floors: sortFloorNames(floors),
+      });
+      setFloors(response.data.floors);
+      setForm((current) => ({ ...current, floors: response.data.floors }));
+      setMessage("Hotel floors saved.");
+    } catch (cause) {
+      setError(cause.message || "Unable to save hotel floors");
+    } finally {
+      setSavingFloors(false);
+    }
+  }
+
   async function downloadHotelBackup() {
     try {
       await downloadBackup();
       setBackupReminder(false);
+      setForm((current) => ({
+        ...current,
+        backupLastDownloadedAt: new Date().toISOString(),
+      }));
       setMessage("Hotel backup downloaded.");
     } catch (cause) {
       setError(cause.message || "Unable to download backup");
@@ -113,6 +145,7 @@ export default function Settings() {
       </div>
       {error && <div className="notice">{error}</div>}
       {message && <div className="success-notice">{message}</div>}
+      {user?.role === "hotel_owner" && (
       <form className="panel form-grid" onSubmit={save}>
         {[
           ["name", "Hotel name"],
@@ -197,15 +230,80 @@ export default function Settings() {
           )}
         </div>
       </form>
+      )}
+      {["hotel_owner", "hotel_manager"].includes(user?.role) && (
+        <section className="panel floor-settings">
+          <div className="panel-head">
+            <div>
+              <h3>Hotel floors</h3>
+              <p>
+                Add the floors in your hotel. Floors are ordered Ground, First,
+                Second and so on.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                setFloors((current) =>
+                  sortFloorNames([...current, nextFloorName(current)]),
+                )
+              }
+              disabled={floors.length >= 50}
+            >
+              Add floor
+            </button>
+          </div>
+          <div className="floor-settings-list">
+            {floors.map((floor, index) => (
+              <div className="floor-settings-item" key={`${floor}-${index}`}>
+                <span>{floor} Floor</span>
+                {index > 0 && (
+                  <button
+                    type="button"
+                    className="mini-btn muted-btn"
+                    onClick={() =>
+                      setFloors((current) =>
+                        current.filter((_, floorIndex) => floorIndex !== index),
+                      )
+                    }
+                    aria-label={`Remove ${floor} floor`}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="booking-hint">
+            A floor with rooms cannot be removed until those rooms are moved to
+            another floor.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            onClick={saveFloors}
+            disabled={savingFloors}
+          >
+            {savingFloors ? "Saving floors…" : "Save floors"}
+          </button>
+        </section>
+      )}
       {user?.role === "hotel_owner" && (
         <section className="panel form-grid backup-tools">
           <h3>Backup and recovery</h3>
           {backupReminder && (
             <div className="notice">
-              Reminder: download a hotel backup. This browser has no backup
-              recorded in the last 7 days.
+              Reminder: download a fresh hotel backup. No backup has been
+              recorded for this hotel in the last 7 days.
             </div>
           )}
+          <p className="booking-hint">
+            Last backup:{" "}
+            {form.backupLastDownloadedAt
+              ? new Date(form.backupLastDownloadedAt).toLocaleString("en-IN")
+              : "Not downloaded yet"}
+          </p>
           <label>
             Validate an AQVRENO backup
             <input type="file" accept="application/json,.json" onChange={selectBackup} />

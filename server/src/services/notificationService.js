@@ -13,6 +13,7 @@ function messageFor(type, booking, hotelName) {
     booking_confirmed: `Hi ${guestName}, your booking at ${hotelName} is confirmed. Check-in: ${checkIn}; check-out: ${checkOut}.`,
     checkin_reminder: `Hi ${guestName}, this is a reminder for your stay at ${hotelName} tomorrow. Room ${roomNumber}; check-in: ${checkIn}.`,
     checkout_reminder: `Hi ${guestName}, your stay at ${hotelName} is scheduled to check out today (${checkOut}). Please contact the front desk if you need help.`,
+    payment_due_reminder: `Hi ${guestName}, your stay at ${hotelName} is scheduled to check out today (${checkOut}). Please contact the front desk to settle any remaining balance.`,
     checked_in: `Hi ${guestName}, you have checked in to ${roomNumber} at ${hotelName}. Have a pleasant stay.`,
     checked_out: `Hi ${guestName}, thank you for staying at ${hotelName}. We hope to welcome you again.`,
   };

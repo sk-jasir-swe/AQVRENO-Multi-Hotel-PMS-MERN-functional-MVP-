@@ -3,6 +3,8 @@ import { useSelector } from "react-redux";
 import api from "../services/api";
 import { downloadCsv } from "../services/download";
 import { formatPhone } from "../components/PhoneInput";
+import ActionMenu from "../components/common/ActionMenu";
+import { hasPermission } from "../utils/permissions";
 
 const tabs = ["orders", "menu", "inventory"];
 
@@ -52,7 +54,20 @@ function printRestaurantBill(order) {
 export default function Restaurant() {
   const user = useSelector((state) => state.auth.user);
   const isManager = ["hotel_owner", "hotel_manager"].includes(user?.role);
+  const canCreateOrder = hasPermission(user, "restaurant.orders.create");
+  const canUpdateOrder = hasPermission(user, "restaurant.orders.update");
+  const canManageMenu = hasPermission(user, "restaurant.menu.manage");
+  const canViewInventory = hasPermission(user, "restaurant.inventory.view");
+  const canManageInventory = hasPermission(user, "restaurant.inventory.manage");
+  const canViewIncome = hasPermission(user, "restaurant.income.view");
+  const availableTabs = tabs.filter(
+    (name) =>
+      name === "menu" ||
+      (name === "orders" && (canCreateOrder || canUpdateOrder)) ||
+      (name === "inventory" && canViewInventory),
+  );
   const [tab, setTab] = useState(isManager ? "menu" : "orders");
+  const activeTab = availableTabs.includes(tab) ? tab : availableTabs[0];
   const [menu, setMenu] = useState([]);
   const [orders, setOrders] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -88,27 +103,33 @@ export default function Restaurant() {
       const requests = [
         api.get("/restaurant/menu"),
         api.get("/restaurant/active-bookings"),
-        api.get("/inventory"),
+        canViewInventory
+          ? api.get("/inventory")
+          : Promise.resolve(null),
       ];
       if (isManager) requests.push(api.get("/restaurant/settings"));
       const [menuResponse, bookingResponse, inventoryResponse, settingsResponse] =
         await Promise.all(requests);
       setMenu(menuResponse.data.menu);
       setBookings(bookingResponse.data.bookings);
-      setInventory(inventoryResponse.data.items);
+      setInventory(inventoryResponse?.data.items || []);
       if (settingsResponse)
         setRestaurantGstRate(String(settingsResponse.data.restaurantGstRate ?? 0));
       setError("");
     } catch (cause) {
       setError(cause.message || "Unable to load restaurant workspace");
     }
-  }, [isManager]);
+  }, [isManager, canViewInventory]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const loadOrders = useCallback(async () => {
+    if (!canCreateOrder && !canUpdateOrder) {
+      setOrders([]);
+      return;
+    }
     const params = orderFilterParams(orderPeriod, orderFrom, orderTo);
     if (params === null) {
       setOrders([]);
@@ -120,14 +141,14 @@ export default function Restaurant() {
     } catch (cause) {
       setError(cause.message || "Unable to load restaurant orders");
     }
-  }, [orderPeriod, orderFrom, orderTo]);
+  }, [orderPeriod, orderFrom, orderTo, canCreateOrder, canUpdateOrder]);
 
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
 
   const loadIncome = useCallback(async () => {
-    if (!isManager) return;
+    if (!canViewIncome) return;
     const params =
       incomePeriod === "custom"
         ? incomeFrom && incomeTo
@@ -144,7 +165,7 @@ export default function Restaurant() {
     } catch (cause) {
       setError(cause.message || "Unable to load restaurant income");
     }
-  }, [incomePeriod, incomeFrom, incomeTo, isManager]);
+  }, [incomePeriod, incomeFrom, incomeTo, canViewIncome]);
 
   useEffect(() => {
     loadIncome();
@@ -272,7 +293,7 @@ export default function Restaurant() {
       </div>
       {error && <div className="notice">{error}</div>}
       <div className="filter-tabs">
-        {tabs.map((name) => (
+        {availableTabs.map((name) => (
           <button
             type="button"
             className={tab === name ? "selected" : ""}
@@ -283,7 +304,7 @@ export default function Restaurant() {
           </button>
         ))}
       </div>
-      {isManager && (
+      {canViewIncome && (
         <section className="panel restaurant-income">
           <div className="panel-head">
             <div>
@@ -368,7 +389,7 @@ export default function Restaurant() {
           </div>
         </section>
       )}
-      {isManager && (
+      {hasPermission(user, "restaurant.settings.manage") && (
         <form
           className="panel form-grid restaurant-tax-settings"
           onSubmit={saveRestaurantSettings}
@@ -397,7 +418,7 @@ export default function Restaurant() {
           </div>
         </form>
       )}
-      {tab === "orders" && (
+      {activeTab === "orders" && (
         <>
           {isManager && (
             <div className="page-heading restaurant-order-tools">
@@ -456,7 +477,7 @@ export default function Restaurant() {
               </button>
             </div>
           )}
-          <form className="panel form-grid" onSubmit={submitOrder}>
+          {canCreateOrder && <form className="panel form-grid" onSubmit={submitOrder}>
             <div className="form-title">New restaurant order</div>
             <label>
               Service type
@@ -551,7 +572,7 @@ export default function Restaurant() {
               />
             </label>
             <div className="form-actions"><button className="primary">Create order</button></div>
-          </form>
+          </form>}
           <section className="panel table-panel">
             <div className="table-wrap">
               <table>
@@ -595,32 +616,31 @@ export default function Restaurant() {
                       <td>₹{order.total}</td>
                       <td>{order.status}</td>
                       <td>
-                        <div className="action-row">
-                          <button
-                            type="button"
-                            className="mini-btn"
-                            onClick={() => {
-                              try {
-                                printRestaurantBill(order);
-                              } catch (cause) {
-                                setError(cause.message || "Unable to print restaurant bill");
-                              }
-                            }}
-                          >
-                            Print bill
-                          </button>
-                          {!["served", "cancelled"].includes(order.status) && (
-                            <select
-                              className="inline-select"
-                              value={order.status}
-                              onChange={(event) => changeOrder(order, event.target.value)}
-                            >
-                              {["new", "preparing", "ready", "served", "cancelled"].map((status) => (
-                                <option key={status}>{status}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
+                        <ActionMenu
+                          items={[
+                            {
+                              label: "Print bill",
+                              onClick: () => {
+                                try {
+                                  printRestaurantBill(order);
+                                } catch (cause) {
+                                  setError(
+                                    cause.message ||
+                                      "Unable to print restaurant bill",
+                                  );
+                                }
+                              },
+                            },
+                            ...(!["served", "cancelled"].includes(order.status)
+                              ? ["new", "preparing", "ready", "served", "cancelled"].map(
+                                  (status) => ({
+                                    label: `Set ${status.replaceAll("_", " ")}`,
+                                    onClick: () => changeOrder(order, status),
+                                  }),
+                                )
+                              : []),
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -631,9 +651,9 @@ export default function Restaurant() {
           </section>
         </>
       )}
-      {tab === "menu" && (
+      {activeTab === "menu" && (
         <>
-          {isManager && (
+          {canManageMenu && (
             <form className="panel form-grid" onSubmit={submitMenu}>
               <div className="form-title">Add menu item</div>
               <label>Name<input required value={menuForm.name} onChange={(event) => setMenuForm({ ...menuForm, name: event.target.value })} /></label>
@@ -655,9 +675,9 @@ export default function Restaurant() {
           </section>
         </>
       )}
-      {tab === "inventory" && (
+      {activeTab === "inventory" && (
         <>
-          {isManager && (
+          {canManageInventory && (
             <form className="panel form-grid" onSubmit={submitInventory}>
               <div className="form-title">Add inventory item</div>
               <label>Name<input required value={inventoryForm.name} onChange={(event) => setInventoryForm({ ...inventoryForm, name: event.target.value })} /></label>
@@ -671,7 +691,7 @@ export default function Restaurant() {
           <section className="panel table-panel">
             <div className="table-wrap">
               <table>
-                <thead><tr><th>ITEM</th><th>STOCK</th><th>REORDER AT</th><th>STATUS</th>{isManager && <th>ADJUST</th>}</tr></thead>
+                <thead><tr><th>ITEM</th><th>STOCK</th><th>REORDER AT</th><th>STATUS</th>{canManageInventory && <th>ADJUST</th>}</tr></thead>
                 <tbody>
                   {inventory.map((item) => (
                     <tr key={item._id}>
@@ -679,10 +699,21 @@ export default function Restaurant() {
                       <td>{item.quantity} {item.unit}</td>
                       <td>{item.reorderLevel} {item.unit}</td>
                       <td>{item.lowStock ? "Reorder needed" : "In stock"}</td>
-                      {isManager && <td><button className="mini-btn" onClick={() => adjustStock(item)}>Adjust stock</button></td>}
+                      {canManageInventory && (
+                        <td>
+                          <ActionMenu
+                            items={[
+                              {
+                                label: "Adjust stock",
+                                onClick: () => adjustStock(item),
+                              },
+                            ]}
+                          />
+                        </td>
+                      )}
                     </tr>
                   ))}
-                  {inventory.length === 0 && <tr><td className="empty" colSpan={isManager ? "5" : "4"}>No inventory items yet.</td></tr>}
+                  {inventory.length === 0 && <tr><td className="empty" colSpan={canManageInventory ? "5" : "4"}>No inventory items yet.</td></tr>}
                 </tbody>
               </table>
             </div>

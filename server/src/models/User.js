@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { STAFF_PERMISSION_KEYS } from "../config/permissions.js";
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -28,7 +29,15 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     active: { type: Boolean, default: true },
+    permissions: {
+      type: [{ type: String, enum: STAFF_PERMISSION_KEYS }],
+      default: [],
+    },
+    permissionsCustomized: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
+
+userSchema.index({ hotel: 1, role: 1, createdAt: -1 });
+
 export default mongoose.model("User", userSchema);

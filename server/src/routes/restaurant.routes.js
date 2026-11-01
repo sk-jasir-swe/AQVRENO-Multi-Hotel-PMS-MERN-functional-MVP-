@@ -11,85 +11,85 @@ import {
   updateMenuItem,
   updateOrder,
 } from "../controllers/restaurant.controller.js";
-import { allowRoles, protect, requireApprovedHotel } from "../middleware/auth.js";
+import {
+  protect,
+  requirePermission,
+  requireApprovedHotel,
+} from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async.js";
 
 const router = Router();
-const roles = allowRoles(
-  "hotel_owner",
-  "hotel_manager",
-  "receptionist",
-  "restaurant_staff",
-  "housekeeping",
-);
 router.get(
   "/restaurant/settings",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.settings.manage"),
   asyncHandler(restaurantSettings),
 );
 router.patch(
   "/restaurant/settings",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.settings.manage"),
   asyncHandler(updateRestaurantSettings),
 );
 router.get(
   "/restaurant/income",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.income.view"),
   asyncHandler(restaurantIncome),
 );
 router.get(
   "/restaurant/menu",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("restaurant.view"),
   asyncHandler(listMenu),
 );
 router.post(
   "/restaurant/menu",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.menu.manage"),
   asyncHandler(createMenuItem),
 );
 router.patch(
   "/restaurant/menu/:id",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.menu.manage"),
   asyncHandler(updateMenuItem),
 );
 router.get(
   "/restaurant/active-bookings",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("restaurant.view"),
   asyncHandler(activeBookingsList),
 );
 router.get(
   "/restaurant/orders",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission([
+    "restaurant.orders.create",
+    "restaurant.orders.update",
+  ]),
   asyncHandler(listOrders),
 );
 router.post(
   "/restaurant/orders",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("restaurant.orders.create"),
   asyncHandler(createOrder),
 );
 router.patch(
   "/restaurant/orders/:id",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("restaurant.orders.update"),
   asyncHandler(updateOrder),
 );
 export default router;

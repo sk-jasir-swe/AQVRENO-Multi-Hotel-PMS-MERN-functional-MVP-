@@ -28,6 +28,8 @@ const schema = new mongoose.Schema(
     checkedOutAt: Date,
     cancelledAt: Date,
     noShowAt: Date,
+    noShowRefundPercent: { type: Number, min: 0, max: 100 },
+    noShowRefundEligible: { type: Number, min: 0 },
     identityDocumentType: {
       type: String,
       enum: ["passport", "drivers_license", "national_id", "other"],

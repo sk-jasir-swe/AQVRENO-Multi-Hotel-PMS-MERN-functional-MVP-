@@ -4,35 +4,33 @@ import {
   createInventoryItem,
   listInventory,
 } from "../controllers/inventory.controller.js";
-import { allowRoles, protect, requireApprovedHotel } from "../middleware/auth.js";
+import {
+  protect,
+  requirePermission,
+  requireApprovedHotel,
+} from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async.js";
 
 const router = Router();
-const roles = allowRoles(
-  "hotel_owner",
-  "hotel_manager",
-  "restaurant_staff",
-  "housekeeping",
-);
 router.get(
   "/inventory",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("restaurant.inventory.view"),
   asyncHandler(listInventory),
 );
 router.post(
   "/inventory",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.inventory.manage"),
   asyncHandler(createInventoryItem),
 );
 router.patch(
   "/inventory/:id/adjust",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("restaurant.inventory.manage"),
   asyncHandler(adjustInventory),
 );
 export default router;

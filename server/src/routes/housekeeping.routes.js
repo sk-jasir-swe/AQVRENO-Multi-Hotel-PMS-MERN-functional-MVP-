@@ -4,29 +4,32 @@ import {
   createHousekeeping,
   updateHousekeeping,
 } from "../controllers/housekeeping.controller.js";
-import { protect, allowRoles, requireApprovedHotel } from "../middleware/auth.js";
+import {
+  protect,
+  requirePermission,
+  requireApprovedHotel,
+} from "../middleware/auth.js";
 import { asyncHandler } from "../utils/async.js";
 const router = Router();
-const roles = allowRoles("hotel_owner", "hotel_manager", "housekeeping");
 router.get(
   "/housekeeping",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("housekeeping.view"),
   asyncHandler(housekeepingList),
 );
 router.post(
   "/housekeeping",
   protect,
   requireApprovedHotel,
-  allowRoles("hotel_owner", "hotel_manager"),
+  requirePermission("housekeeping.manage"),
   asyncHandler(createHousekeeping),
 );
 router.patch(
   "/housekeeping/:id",
   protect,
   requireApprovedHotel,
-  roles,
+  requirePermission("housekeeping.manage"),
   asyncHandler(updateHousekeeping),
 );
 export default router;

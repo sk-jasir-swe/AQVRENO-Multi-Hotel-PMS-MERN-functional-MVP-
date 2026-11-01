@@ -1,11 +1,16 @@
 import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
+import ActivityLog from "../models/ActivityLog.js";
 import Guest from "../models/Guest.js";
 import Hotel from "../models/Hotel.js";
 import Invoice from "../models/Invoice.js";
 import Payment from "../models/Payment.js";
 import Room from "../models/Room.js";
-import { assertRoomAvailable } from "../services/bookingService.js";
+import {
+  acquireRoomBookingLock,
+  assertRoomAvailable,
+  isCheckInDateReached,
+} from "../services/bookingService.js";
 import { notifyBookingEvent } from "../services/notificationService.js";
 import { recordActivity } from "../services/activityLog.js";
 import { netPaymentExpression } from "../services/paymentLedger.js";
@@ -102,6 +107,23 @@ export async function list(req, res) {
   res.json({ items: bookings });
 }
 
+export async function history(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id))
+    return res.status(404).json({ message: "Booking not found" });
+  const hotel = req.user.hotel._id;
+  const booking = await Booking.exists({ _id: req.params.id, hotel });
+  if (!booking) return res.status(404).json({ message: "Booking not found" });
+  const items = await ActivityLog.find({
+    hotel,
+    entity: "Booking",
+    entityId: req.params.id,
+  })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .populate("actor", "name role");
+  res.json({ items });
+}
+
 export async function create(req, res) {
   const { guest, room, checkIn, checkOut } = req.body;
   if (
@@ -153,23 +175,28 @@ export async function create(req, res) {
     return res
       .status(409)
       .json({ message: "Selected room is not available for a new booking" });
-  if (await Booking.exists({ hotel, room, status: "checked_in" }))
-    return res
-      .status(409)
-      .json({ message: "This room already has a guest checked in" });
-
-  await assertRoomAvailable({ hotel, room, checkIn: start, checkOut: end });
-  const booking = await Booking.create({
-    hotel,
-    guest: guestRecord._id,
-    room: roomRecord._id,
-    checkIn: start,
-    checkOut: end,
-    nightlyRate: roomRecord.price,
-    total: roomRecord.price * nights,
-    adults: 1 + guestRecord.additionalGuests.length,
-    source: guestRecord.source,
-  });
+  const roomLock = await acquireRoomBookingLock({ hotel, room });
+  let booking;
+  try {
+    if (await Booking.exists({ hotel, room, status: "checked_in" }))
+      return res
+        .status(409)
+        .json({ message: "This room already has a guest checked in" });
+    await assertRoomAvailable({ hotel, room, checkIn: start, checkOut: end });
+    booking = await Booking.create({
+      hotel,
+      guest: guestRecord._id,
+      room: roomRecord._id,
+      checkIn: start,
+      checkOut: end,
+      nightlyRate: roomRecord.price,
+      total: roomRecord.price * nights,
+      adults: 1 + guestRecord.additionalGuests.length,
+      source: guestRecord.source,
+    });
+  } finally {
+    await roomLock.release();
+  }
   const populated = await Booking.findById(booking._id).populate("guest room");
   const hotelInfo = await Hotel.findById(hotel).select("name");
   await notifyBookingEvent({
@@ -183,6 +210,11 @@ export async function create(req, res) {
   await recordActivity(req, "booking.created", "Booking", populated._id, {
     guest: populated.guest?.name,
     room: populated.room?.number,
+    checkIn: populated.checkIn,
+    checkOut: populated.checkOut,
+    nightlyRate: populated.nightlyRate,
+    total: populated.total,
+    status: populated.status,
   });
   res.status(201).json({ item: populated });
 }
@@ -195,6 +227,7 @@ export async function update(req, res) {
   const hotel = req.user.hotel._id;
   const booking = await Booking.findOne({ _id: req.params.id, hotel });
   if (!booking) return res.status(404).json({ message: "Booking not found" });
+  const previousStatus = booking.status;
   const { status } = req.body;
   if (
     !["confirmed", "checked_in", "checked_out", "cancelled", "no_show"].includes(
@@ -253,6 +286,8 @@ export async function update(req, res) {
     await sendBookingStatusNotification(booking, hotel, "checked_in");
     await recordActivity(req, "booking.checked_in", "Booking", booking._id, {
       room: booking.room,
+      previousStatus,
+      newStatus: booking.status,
     });
     return res.json({ item: booking });
   }
@@ -277,8 +312,6 @@ export async function update(req, res) {
     const hotelInfo = await Hotel.findById(hotel).select(
       "gstRate cancellationCutoffHours cancellationRefundPercent",
     );
-    if (!hotelInfo)
-      return res.status(404).json({ message: "Hotel settings not found" });
     const paid = await Payment.aggregate([
       {
         $match: {
@@ -312,11 +345,13 @@ export async function update(req, res) {
       return res.status(409).json({
         message: "Only confirmed reservations can be marked no-show",
       });
-    if (Date.now() < booking.checkIn.getTime())
+    if (!isCheckInDateReached(booking.checkIn))
       return res.status(409).json({
         message: "A reservation can only be marked no-show on or after check-in",
       });
     booking.noShowAt = new Date();
+    booking.noShowRefundPercent = 0;
+    booking.noShowRefundEligible = 0;
   }
   booking.status = status;
   if (status === "checked_out")
@@ -384,10 +419,12 @@ export async function update(req, res) {
     booking._id,
     status === "cancelled"
       ? {
+          previousStatus,
+          newStatus: status,
           reason: booking.cancellationReason,
           refundEligible: booking.cancellationRefundEligible,
         }
-      : {},
+      : { previousStatus, newStatus: status },
   );
   res.json({ item: booking });
 }
@@ -412,6 +449,11 @@ export async function remove(req, res) {
       message: "Reservations with payment or invoice records cannot be deleted",
     });
   await booking.deleteOne();
+  await recordActivity(req, "booking.deleted", "Booking", booking._id, {
+    previousStatus: booking.status,
+    guest: String(booking.guest),
+    room: String(booking.room),
+  });
   res.json({ message: "Deleted" });
 }
 

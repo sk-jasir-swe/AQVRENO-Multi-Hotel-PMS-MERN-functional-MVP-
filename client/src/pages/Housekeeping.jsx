@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import api from "../services/api";
+import ActionMenu from "../components/common/ActionMenu";
+import { hasPermission } from "../utils/permissions";
 
 export default function Housekeeping() {
   const user = useSelector((state) => state.auth.user);
@@ -10,9 +12,20 @@ export default function Housekeeping() {
   const [form, setForm] = useState({ room: "", task: "cleaning" });
   const [error, setError] = useState("");
   const isHousekeeper = user?.role === "housekeeping";
+  const isManager = ["hotel_owner", "hotel_manager"].includes(user?.role);
+  const canManageTasks = hasPermission(user, "housekeeping.manage");
 
   async function load() {
     try {
+      if (!isManager) {
+        const requests = [api.get("/housekeeping")];
+        if (canManageTasks) requests.push(api.get("/rooms"));
+        const [taskResponse, roomResponse] = await Promise.all(requests);
+        setTasks(taskResponse.data.tasks);
+        if (roomResponse) setRooms(roomResponse.data.items);
+        setError("");
+        return;
+      }
       if (isHousekeeper) {
         const taskResponse = await api.get("/housekeeping");
         setTasks(taskResponse.data.tasks);
@@ -64,7 +77,7 @@ export default function Housekeeping() {
         </div>
       </div>
       {error && <div className="notice">{error}</div>}
-      {!isHousekeeper && (
+      {canManageTasks && (
         <form className="panel form-grid" onSubmit={create}>
           <div className="form-title">Assign a room task</div>
           <label>
@@ -84,7 +97,7 @@ export default function Housekeeping() {
               ))}
             </select>
           </label>
-          <label>
+          {isManager && <label>
             Assign to
             <select
               value={form.assignedTo || ""}
@@ -101,7 +114,7 @@ export default function Housekeeping() {
                   </option>
                 ))}
             </select>
-          </label>
+          </label>}
           <label>
             Task
             <select
@@ -141,6 +154,7 @@ export default function Housekeeping() {
                 <th>ASSIGNED TO</th>
                 <th>NOTES</th>
                 <th>STATUS</th>
+                <th>ACTION</th>
               </tr>
             </thead>
             <tbody>
@@ -151,25 +165,25 @@ export default function Housekeeping() {
                   <td>{task.assignedTo?.name || "Unassigned"}</td>
                   <td>{task.notes || "—"}</td>
                   <td>
-                    <select
-                      className="inline-select"
-                      value={task.status}
-                      onChange={(event) => update(task, event.target.value)}
-                    >
-                      {["pending", "in_progress", "completed", "inspected"].map(
-                        (status) => (
-                          <option key={status} value={status}>
-                            {status.replaceAll("_", " ")}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                    <span className={`status ${task.status}`}>
+                      {task.status.replaceAll("_", " ")}
+                    </span>
+                  </td>
+                  <td>
+                    <ActionMenu
+                      items={["pending", "in_progress", "completed", "inspected"]
+                        .filter((status) => status !== task.status)
+                        .map((status) => ({
+                          label: `Set status: ${status.replaceAll("_", " ")}`,
+                          onClick: () => update(task, status),
+                        }))}
+                    />
                   </td>
                 </tr>
               ))}
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="empty">
+                  <td colSpan="6" className="empty">
                     {isHousekeeper
                       ? "No tasks are assigned to you yet."
                       : "No housekeeping tasks yet."}
