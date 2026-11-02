@@ -78,6 +78,7 @@ export default function Restaurant() {
   const [income, setIncome] = useState(null);
   const [restaurantGstRate, setRestaurantGstRate] = useState("0");
   const [savingRestaurantSettings, setSavingRestaurantSettings] = useState(false);
+  const [updatingMenuItemId, setUpdatingMenuItemId] = useState("");
   const [orderPeriod, setOrderPeriod] = useState("all");
   const [orderFrom, setOrderFrom] = useState("");
   const [orderTo, setOrderTo] = useState("");
@@ -199,6 +200,25 @@ export default function Restaurant() {
       await load();
     } catch (cause) {
       setError(cause.message || "Unable to save menu item");
+    }
+  }
+
+  async function toggleMenuAvailability(item) {
+    setUpdatingMenuItemId(item._id);
+    setError("");
+    try {
+      const response = await api.patch(`/restaurant/menu/${item._id}`, {
+        active: !item.active,
+      });
+      setMenu((currentMenu) =>
+        currentMenu.map((menuItem) =>
+          menuItem._id === item._id ? response.data.item : menuItem,
+        ),
+      );
+    } catch (cause) {
+      setError(cause.message || "Unable to update menu item availability");
+    } finally {
+      setUpdatingMenuItemId("");
     }
   }
 
@@ -665,10 +685,35 @@ export default function Restaurant() {
           <section className="panel table-panel">
             <div className="table-wrap">
               <table>
-                <thead><tr><th>ITEM</th><th>CATEGORY</th><th>PRICE</th><th>STATUS</th></tr></thead>
+                <thead><tr><th>ITEM</th><th>CATEGORY</th><th>PRICE</th><th>STATUS</th>{canManageMenu && <th>ACTIONS</th>}</tr></thead>
                 <tbody>
-                  {menu.map((item) => <tr key={item._id}><td>{item.name}</td><td>{item.category || "—"}</td><td>₹{item.price}</td><td>{item.active ? "Available" : "Unavailable"}</td></tr>)}
-                  {menu.length === 0 && <tr><td className="empty" colSpan="4">No menu items configured.</td></tr>}
+                  {menu.map((item) => (
+                    <tr key={item._id}>
+                      <td>{item.name}</td>
+                      <td>{item.category || "—"}</td>
+                      <td>₹{item.price}</td>
+                      <td>{item.active ? "Available" : "Unavailable"}</td>
+                      {canManageMenu && (
+                        <td>
+                          <ActionMenu
+                            disabled={Boolean(updatingMenuItemId)}
+                            items={[
+                              {
+                                label:
+                                  updatingMenuItemId === item._id
+                                    ? "Updating…"
+                                    : item.active
+                                      ? "Mark unavailable"
+                                      : "Mark available",
+                                onClick: () => toggleMenuAvailability(item),
+                              },
+                            ]}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {menu.length === 0 && <tr><td className="empty" colSpan={canManageMenu ? "5" : "4"}>No menu items configured.</td></tr>}
                 </tbody>
               </table>
             </div>
