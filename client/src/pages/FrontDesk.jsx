@@ -23,6 +23,16 @@ function dateKey(value) {
   return `${date.year}-${date.month}-${date.day}`;
 }
 
+function formatActionTime(value) {
+  return value
+    ? new Date(value).toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Asia/Kolkata",
+      })
+    : "—";
+}
+
 function printInvoice({ invoice, hotel, booking }, windowRef) {
   const escape = (value) =>
     String(value ?? "").replace(/[&<>"']/g, (character) => {
@@ -141,6 +151,7 @@ export default function FrontDesk() {
                 <th>ROOM</th>
                 <th>CHECK-IN</th>
                 <th>CHECK-OUT</th>
+                <th>ACTION TIME</th>
                 <th>PAYMENT</th>
                 <th>ACTIONS</th>
               </tr>
@@ -163,6 +174,13 @@ export default function FrontDesk() {
                   </td>
                   <td>{new Date(booking.checkIn).toLocaleDateString()}</td>
                   <td>{new Date(booking.checkOut).toLocaleDateString()}</td>
+                  <td>
+                    {booking.status === "checked_out"
+                      ? `Checked out · ${formatActionTime(booking.checkedOutAt)}`
+                      : booking.checkedInAt
+                        ? `Checked in · ${formatActionTime(booking.checkedInAt)}`
+                        : "—"}
+                  </td>
                   <td>{booking.paymentStatus}</td>
                   <td>
                     <ActionMenu
@@ -255,7 +273,7 @@ export default function FrontDesk() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="empty">
+                  <td colSpan="7" className="empty">
                     No reservations in this list.
                   </td>
                 </tr>

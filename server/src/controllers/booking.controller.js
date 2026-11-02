@@ -609,8 +609,16 @@ export async function frontDesk(req, res) {
       .populate("guest room"),
     Booking.find({
       hotel: req.user.hotel._id,
-      status: "checked_in",
-      checkOut: { $gte: today, $lt: tomorrow },
+      $or: [
+        {
+          status: "checked_in",
+          checkOut: { $gte: today, $lt: tomorrow },
+        },
+        {
+          status: "checked_out",
+          checkedOutAt: { $gte: today, $lt: tomorrow },
+        },
+      ],
     }).populate("guest room"),
   ]);
   res.json({ arrivals, inHouse, departures });
