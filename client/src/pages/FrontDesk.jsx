@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../services/api";
 import { formatPhone } from "../components/PhoneInput";
 import ActionMenu from "../components/common/ActionMenu";
+import { formatRoomDetails } from "../utils/roomDetails";
 
 const tabs = [
   ["arrivals", "Check in / out"],
@@ -169,8 +170,8 @@ export default function FrontDesk() {
                     </small>
                   </td>
                   <td>
-                    Room {booking.room?.number || "—"} ·{" "}
-                    {booking.room?.type || "—"}
+                    <b>Room {booking.room?.number || "—"}</b>
+                    <small>{formatRoomDetails(booking.room)}</small>
                   </td>
                   <td>{new Date(booking.checkIn).toLocaleDateString()}</td>
                   <td>{new Date(booking.checkOut).toLocaleDateString()}</td>

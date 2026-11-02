@@ -8,6 +8,7 @@ import PhoneInput, { formatPhone } from "../components/PhoneInput";
 import ActionMenu from "../components/common/ActionMenu";
 import { sortFloorNames } from "../utils/floors";
 import { hasPermission } from "../utils/permissions";
+import { formatRoomDetails } from "../utils/roomDetails";
 const titles = {
   rooms: "Room management",
   guests: "Guest directory",
@@ -357,7 +358,8 @@ export default function Resource() {
                     .filter((room) => room.status === "available")
                     .map((room) => (
                       <option key={room._id} value={room._id}>
-                        Room {room.number} · {room.type} · ₹{room.price}/night
+                        Room {room.number} · {formatRoomDetails(room)} · ₹
+                        {room.price}/night
                       </option>
                     ))}
                 </select>
@@ -1006,7 +1008,7 @@ export default function Resource() {
                             {x.room?.number ? `Room ${x.room.number}` : "Room"}
                           </b>
                           <small>
-                            {x.room?.type || "Room type unavailable"}
+                            {formatRoomDetails(x.room)}
                           </small>
                         </td>
                         <td>{new Date(x.checkIn).toLocaleDateString()}</td>
@@ -1140,6 +1142,7 @@ export default function Resource() {
                 </h3>
                 <p>
                   Room {bookingHistory.booking.room?.number || "—"} ·{" "}
+                  {formatRoomDetails(bookingHistory.booking.room)} ·{" "}
                   {bookingHistory.items.length} changes
                 </p>
               </div>
